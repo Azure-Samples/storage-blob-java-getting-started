@@ -47,23 +47,15 @@ public class App {
 	// *************************************************************************************************************************
 	public static final String storageConnectionString =
 			"DefaultEndpointsProtocol=https;"
-					+ "AccountName=AccountName;"
-					+ "AccountKey=AccountKey";
+					+ "AccountName=YourAccountName;"
+					+ "AccountKey=YourAccountKey";
 
 	public static void main(String[] args) {
 		System.out.println("Azure Storage Blob Sample\n ");
 
 		// Block blob basics
 		System.out.println("Block Blob Sample");
-		BasicStorageBlockBlobOperations();
-
-		System.out.println("Press enter to exit");
-		try
-		{
-			System.in.read();
-		}  
-		catch(Exception e)
-		{}  
+		BasicStorageBlockBlobOperations();  
 	}
 
 	/// <summary>
@@ -71,7 +63,7 @@ public class App {
     /// </summary>
 	public static void BasicStorageBlockBlobOperations(){
 		try {
-			String ImageToUpload = "HelloWorld.png";
+			String imageToUpload = "HelloWorld.png";
 
 			// Retrieve storage account information from connection string
 			// How to create a storage connection string - https://azure.microsoft.com/en-us/documentation/articles/storage-java-how-to-use-blob-storage/#set-up-an-azure-storage-connection-string
@@ -96,8 +88,8 @@ public class App {
 
 			// Upload a BlockBlob to the newly created container
 			System.out.println("2. Uploading BlockBlob");
-			CloudBlockBlob blockBlob = container.getBlockBlobReference(ImageToUpload);
-			File sourceFile = new File(ImageToUpload);
+			CloudBlockBlob blockBlob = container.getBlockBlobReference(imageToUpload);
+			File sourceFile = new File(imageToUpload);
 			blockBlob.upload(new FileInputStream(sourceFile), sourceFile.length());
 
 			// List all the blobs in the container 
@@ -109,7 +101,7 @@ public class App {
 
 			// Download a blob to your file system
 			System.out.println("4. Download Blob from " + blockBlob.getUri());
-			File destinationFile = new File(sourceFile.getParentFile(), "CopyOf" + ImageToUpload);
+			File destinationFile = new File(sourceFile.getParentFile(), "CopyOf" + imageToUpload);
 			blockBlob.downloadToFile(destinationFile.getAbsolutePath());
 
 			// Clean up after the demo 
