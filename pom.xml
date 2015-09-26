@@ -1,24 +1,58 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-	<modelVersion>4.0.0</modelVersion>
-
-	<groupId>azure-storage</groupId>
-	<artifactId>storage-blob-java-getting-started</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
-	<packaging>jar</packaging>
-
-	<name>storage-blob-java-getting-started</name>
-	<url>http://maven.apache.org</url>
-
-	<properties>
-		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-	</properties>
-
-	<dependencies>
-		<dependency>
-			<groupId>com.microsoft.azure</groupId>
-			<artifactId>azure-storage</artifactId>
-			<version>3.0.0</version>
-		</dependency>
-	</dependencies>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.microsoft.azure</groupId>
+  <artifactId>storage-java-blob</artifactId>
+  <version>0.0.1-SNAPSHOT</version>
+  <name>getting-started</name>
+  <description>Basic operations with Azure Storage Blob Service</description>
+  <url>https://github.com/Azure-Samples/storage-blob-java-getting-started/</url>
+  <dependencies>
+    <dependency>
+      <groupId>com.microsoft.azure</groupId>
+      <artifactId>azure-storage</artifactId>
+      <version>3.1.0</version>
+    </dependency>
+  </dependencies>
+  <build>
+    <sourceDirectory>src</sourceDirectory>
+    <resources>
+      <resource>
+        <directory>resources</directory>
+      </resource>
+    </resources>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.0</version>
+          <configuration>
+            <source>1.7</source>
+            <target>1.7</target>
+          </configuration>
+      </plugin>
+      <plugin>
+        <!-- Generate a fully packaged executable jar with dependencies -->
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-assembly-plugin</artifactId>
+          <executions>
+            <execution>
+               <goals>
+                 <goal>attached</goal>
+               </goals>
+               <phase>package</phase>
+               <configuration>
+                 <descriptorRefs>
+                   <descriptorRef>jar-with-dependencies</descriptorRef>
+                </descriptorRefs>
+                <archive>
+                  <manifest>
+                    <mainClass>BlobBasics</mainClass>
+                  </manifest>
+                </archive>
+              </configuration>
+           </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
 </project>
