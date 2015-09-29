@@ -1,7 +1,7 @@
 ---
-services: Storage
-platforms: Java
-author: Azure Storage
+services: storage
+platforms: java
+author: sribhat-MSFT
 ---
 
 # Azure Storage: Blobs
