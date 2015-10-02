@@ -4,7 +4,7 @@ platforms: java
 author: sribhat-MSFT
 ---
 
-# Azure Storage: Blobs
+# Getting Started with Azure Blob Service in Java
 
 Azure Blob Service Sample - Demonstrates how to perform common tasks using the Microsoft Azure Blob Service.
 
