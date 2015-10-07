@@ -1,22 +1,22 @@
-/**
- * Copyright Microsoft Corporation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+//----------------------------------------------------------------------------------
+// Microsoft Developer & Platform Evangelism
+//
+// Copyright (c) Microsoft Corporation. All rights reserved.
+//
+// THIS CODE AND INFORMATION ARE PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND,
+// EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE IMPLIED WARRANTIES
+// OF MERCHANTABILITY AND/OR FITNESS FOR A PARTICULAR PURPOSE.
+//----------------------------------------------------------------------------------
+// The example companies, organizations, products, domain names,
+// e-mail addresses, logos, people, places, and events depicted
+// herein are fictitious.  No association with any real company,
+// organization, product, domain name, email address, logo, person,
+// places, or events is intended or should be inferred.
+//----------------------------------------------------------------------------------
 
-import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileWriter;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
@@ -24,6 +24,7 @@ import java.io.StringWriter;
 import java.net.URISyntaxException;
 import java.security.InvalidKeyException;
 import java.util.Properties;
+import java.util.Random;
 import java.util.Scanner;
 import java.util.UUID;
 
@@ -31,9 +32,13 @@ import com.microsoft.azure.storage.CloudStorageAccount;
 import com.microsoft.azure.storage.StorageException;
 import com.microsoft.azure.storage.blob.BlobContainerPermissions;
 import com.microsoft.azure.storage.blob.BlobContainerPublicAccessType;
+import com.microsoft.azure.storage.blob.CloudAppendBlob;
+import com.microsoft.azure.storage.blob.CloudBlob;
 import com.microsoft.azure.storage.blob.CloudBlobClient;
 import com.microsoft.azure.storage.blob.CloudBlobContainer;
 import com.microsoft.azure.storage.blob.CloudBlockBlob;
+import com.microsoft.azure.storage.blob.CloudPageBlob;
+import com.microsoft.azure.storage.blob.DeleteSnapshotsOption;
 import com.microsoft.azure.storage.blob.ListBlobItem;
 
 /*
@@ -68,11 +73,6 @@ import com.microsoft.azure.storage.blob.ListBlobItem;
  */
 public class BlobBasics {
 
-    protected static CloudBlobContainer container = null;
-    protected final static String containerNamePrefix = "blobbasics";
-    protected final static String tempFileNamePrefix = "HelloWorld-";
-    protected final static String tempFileNameSuffix = ".txt";
-
     /**
      * Azure Storage Blob Sample
      *
@@ -84,24 +84,13 @@ public class BlobBasics {
         System.out.println("Azure Storage Blob sample - Starting.\n");
 
         Scanner scan = null;
-        BufferedWriter bufferedWriter = null;
+        CloudBlobContainer container = null;
         try {
             // Create a scanner for user input
             scan = new Scanner(System.in);
 
-            // Create a sample file for use
-            System.out.println("Creating a sample file for upload demonstration.");
-            File tempFile = File.createTempFile(tempFileNamePrefix, tempFileNameSuffix);
-            bufferedWriter = new BufferedWriter(new FileWriter(tempFile));
-            for (int i = 0; i < 256; i++) {
-                bufferedWriter.write("Hello World!!");
-                bufferedWriter.newLine();
-            }
-            bufferedWriter.close();
-            System.out.println(String.format("\tSuccessfully created the file \"%s\".", tempFile.getAbsolutePath()));
-
             // Create new container with a randomized name
-            String containerName = containerNamePrefix + UUID.randomUUID().toString().replace("-", "");
+            String containerName = "blobbasics" + UUID.randomUUID().toString().replace("-", "");
             System.out.println(String.format("\n1. Create a container with name \"%s\"", containerName));
             try {
                 container = createContainer(containerName);
@@ -112,20 +101,27 @@ public class BlobBasics {
             }
             System.out.println("\tSuccessfully created the container.");
 
-            // Upload a local file to the newly created container as a block blob
-            System.out.println("\n2. Upload the sample file as a block blob.");
-            CloudBlockBlob blockBlob = container.getBlockBlobReference(tempFile.getName());
-            File sourceFile = new File(tempFile.getAbsolutePath());
-            blockBlob.upload(new FileInputStream(sourceFile), sourceFile.length());
-            System.out.println("\tSuccessfully created the container.");
+            // Demonstrate block blobs
+            System.out.println("\n2. Basic block blob operations");
+            basicBlockBlobOperations(container);
+
+            // Demonstrate page blobs
+            System.out.println("\n3. Basic page blob operations");
+            basicPageBlobOperations(container);
+
+            // Demonstrate append blobs
+            System.out.println("\n4. Basic append blob operations");
+            basicAppendBlobOperations(container);
 
             // List all the blobs in the container
-            System.out.println("\n3. List all blobs in the container");
+            System.out.println("\n5. List all blobs in the container");
             for (ListBlobItem blob : container.listBlobs()) {
-                System.out.println(String.format("\tBLOB\t: %s", blob.getUri().toString()));
+                if (blob instanceof CloudBlob) {
+                    System.out.println(String.format("\t%s\t: %s", ((CloudBlob) blob).getProperties().getBlobType(), blob.getUri().toString()));
+                }
             }
 
-            // To view the uploaded blob in a browser, you have two options.
+            // To view the uploaded blobs in a browser, you have two options.
             //   - The first option is to use a Shared Access Signature (SAS) token to delegate access to the resource.
             //     See the documentation links at the top for more information on SAS.
             //   - The second approach is to set permissions to allow public access to blobs in this container.
@@ -134,17 +130,16 @@ public class BlobBasics {
             containerPermissions.setPublicAccess(BlobContainerPublicAccessType.CONTAINER);
             //container.uploadPermissions(containerPermissions);
 
-            // Download the uploaded blob
-            String downloadedBlobPath = String.format("%sCopyOf-%s", System.getProperty("java.io.tmpdir"), tempFile.getName());
-            System.out.println(String.format("\n4. Download blob from \"%s\" to \"%s\".", blockBlob.getUri().toURL(), downloadedBlobPath));
-            blockBlob.downloadToFile(downloadedBlobPath);
-            System.out.println("\tSuccessfully downloaded the blob.");
-
-            // Delete the blob
-            System.out.print("\n5. Delete the block blob. Press any key to continue...");
+            // Delete the blobs and any of its snapshots
+            System.out.print("\n6. Delete the blobs and any of its snapshots. Press any key to continue...");
             scan.nextLine();
-            blockBlob.delete();
-            System.out.println("\tSuccessfully deleted the blob.");
+            for (ListBlobItem blob : container.listBlobs()) {
+                if (blob instanceof CloudBlob) {
+                    ((CloudBlob) blob).delete(DeleteSnapshotsOption.INCLUDE_SNAPSHOTS, null, null, null);
+                }
+            }
+            System.out.println("\tSuccessfully deleted the blobs and its snapshots.");
+
         }
         catch (Throwable t) {
             printException(t);
@@ -153,7 +148,7 @@ public class BlobBasics {
             // Delete the container (If you do not want to delete the container comment out the block of code below)
             if (container != null)
             {
-                System.out.print("\n6. Delete the container. Press any key to continue...");
+                System.out.print("\n7. Delete the container. Press any key to continue...");
                 scan.nextLine();
                 if (container.deleteIfExists() == true) {
                     System.out.println("\tSuccessfully deleted the container.");
@@ -164,7 +159,9 @@ public class BlobBasics {
             }
 
             // Close the scanner
-            scan.close();
+            if (scan != null) {
+                scan.close();
+            }
         }
 
         System.out.println("\nAzure Storage Blob sample - Completed.\n");
@@ -253,6 +250,241 @@ public class BlobBasics {
         }
 
         return container;
+    }
+
+    /**
+     * Demonstrates the basic operations with a block blob.
+     *
+     * @param container The CloudBlobContainer object to work with
+     *
+     * @throws StorageException
+     * @throws IOException
+     * @throws IllegalArgumentException
+     * @throws URISyntaxException
+     */
+    private static void basicBlockBlobOperations(CloudBlobContainer container) throws StorageException, IOException, IllegalArgumentException, URISyntaxException {
+
+        // Create sample files for use
+        Random random = new Random();
+        System.out.println("\tCreating sample files between 128KB-256KB in size for upload demonstration.");
+        File tempFile1 = createTempLocalFile("blockblob-", ".tmp", (128 * 1024) + random.nextInt(128 * 1024));
+        System.out.println(String.format("\t\tSuccessfully created the file \"%s\".", tempFile1.getAbsolutePath()));
+        File tempFile2 = createTempLocalFile("blockblob-", ".tmp", (128 * 1024) + random.nextInt(128 * 1024));
+        System.out.println(String.format("\t\tSuccessfully created the file \"%s\".", tempFile2.getAbsolutePath()));
+
+        // Upload a sample file as a block blob
+        System.out.println("\n\tUpload a sample file as a block blob.");
+        CloudBlockBlob blockBlob = container.getBlockBlobReference("blockblob.tmp");
+        blockBlob.uploadFromFile(tempFile1.getAbsolutePath());
+        System.out.println("\t\tSuccessfully uploaded the blob.");
+
+        // Create a read-only snapshot of the blob
+        System.out.println("\n\tCreate a read-only snapshot of the blob.");
+        CloudBlob blockBlobSnapshot = blockBlob.createSnapshot();
+        System.out.println("\t\tSuccessfully created a snapshot of the blob.");
+
+        // Modify the blob by overwriting it
+        System.out.println("\n\tOverwrite the blob by uploading the second sample file.");
+        blockBlob.uploadFromFile(tempFile2.getAbsolutePath());
+        System.out.println("\t\tSuccessfully overwrote the blob.");
+
+        // Download the blob and its snapshot
+        System.out.println("\n\tDownload the blob and its snapshot.");
+
+        String downloadedBlockBlobSnapshotPath = String.format("%ssnapshotof-%s", System.getProperty("java.io.tmpdir"), blockBlobSnapshot.getName());
+        System.out.println(String.format("\t\tDownload the blob snapshot from \"%s\" to \"%s\".", blockBlobSnapshot.getUri().toURL(), downloadedBlockBlobSnapshotPath));
+        blockBlobSnapshot.downloadToFile(downloadedBlockBlobSnapshotPath);
+        new File(downloadedBlockBlobSnapshotPath).deleteOnExit();
+        System.out.println("\t\tSuccessfully downloaded the blob snapshot.");
+
+        String downloadedBlockBlobPath = String.format("%scopyof-%s", System.getProperty("java.io.tmpdir"), blockBlob.getName());
+        System.out.println(String.format("\t\tDownload the blob from \"%s\" to \"%s\".", blockBlob.getUri().toURL(), downloadedBlockBlobPath));
+        blockBlob.downloadToFile(downloadedBlockBlobPath);
+        new File(downloadedBlockBlobPath).deleteOnExit();
+        System.out.println("\t\tSuccessfully downloaded the blob.");
+    }
+
+    /**
+     * Demonstrates the basic operations with a page blob.
+     *
+     * @param container The CloudBlobContainer object to work with
+     *
+     * @throws StorageException
+     * @throws IOException
+     * @throws IllegalArgumentException
+     * @throws URISyntaxException
+     */
+    private static void basicPageBlobOperations(CloudBlobContainer container) throws StorageException, IOException, IllegalArgumentException, URISyntaxException {
+
+        // Create sample files for use. We use a file whose size is aligned to 512 bytes since page blobs are expected to be aligned to 512 byte pages.
+        System.out.println("\tCreating sample file 128KB in size (aligned to 512 bytes) for upload demonstration.");
+        File tempFile = createTempLocalFile("pageblob-", ".tmp", (128 * 1024));
+        System.out.println(String.format("\t\tSuccessfully created the file \"%s\".", tempFile.getAbsolutePath()));
+
+        // Upload the sample file sparsely as a page blob (Only upload certain ranges of the file)
+        System.out.println("\n\tUpload the sample file sparsely as a page blob.");
+        System.out.println("\t\tCreating an empty page blob of the same size as the sample file.");
+        CloudPageBlob pageBlob = container.getPageBlobReference("pageblob.tmp");
+        pageBlob.create(tempFile.length()); // This will throw an IllegalArgumentException if the size if not aligned to 512 bytes.
+
+        // Upload selective pages to the blob
+        System.out.println("\t\tUploading selective pages to the blob.");
+        FileInputStream tempFileInputStream = null;
+        try {
+            tempFileInputStream = new FileInputStream(tempFile);
+            System.out.println("\t\t\tUploading range start: 0, length: 1024.");
+            pageBlob.uploadPages(tempFileInputStream, 0, 1024);
+            System.out.println("\t\t\tUploading range start: 4096, length: 1536.");
+            pageBlob.uploadPages(tempFileInputStream, 4096, 1536);
+        }
+        catch (Throwable t) {
+            throw t;
+        }
+        finally {
+            if (tempFileInputStream != null) {
+                tempFileInputStream.close();
+            }
+        }
+        System.out.println("\t\tSuccessfully uploaded the blob sparsely.");
+
+        // Create a read-only snapshot of the blob
+        System.out.println("\n\tCreate a read-only snapshot of the blob.");
+        CloudBlob pageBlobSnapshot = pageBlob.createSnapshot();
+        System.out.println("\t\tSuccessfully created a snapshot of the blob.");
+
+        // Upload new pages to the blob, modify and clear existing pages
+        System.out.println("\t\tModify the blob by uploading new pages to the blob and clearing existing pages.");
+        tempFileInputStream = null;
+        try {
+            tempFileInputStream = new FileInputStream(tempFile);
+            System.out.println("\t\t\tUploading range start: 8192, length: 4096.");
+            tempFileInputStream.getChannel().position(8192);
+            pageBlob.uploadPages(tempFileInputStream, 8192, 4096);
+            System.out.println("\t\t\tClearing range start: 4608, length: 512.");
+            pageBlob.clearPages(4608, 512);
+        }
+        catch (Throwable t) {
+            throw t;
+        }
+        finally {
+            if (tempFileInputStream != null) {
+                tempFileInputStream.close();
+            }
+        }
+        System.out.println("\t\tSuccessfully modified the blob.");
+
+        // Download the blob and its snapshot
+        System.out.println("\n\tDownload the blob and its snapshot.");
+
+        String downloadedPageBlobSnapshotPath = String.format("%ssnapshotof-%s", System.getProperty("java.io.tmpdir"), pageBlobSnapshot.getName());
+        System.out.println(String.format("\t\tDownload the blob snapshot from \"%s\" to \"%s\".", pageBlobSnapshot.getUri().toURL(), downloadedPageBlobSnapshotPath));
+        pageBlobSnapshot.downloadToFile(downloadedPageBlobSnapshotPath);
+        new File(downloadedPageBlobSnapshotPath).deleteOnExit();
+        System.out.println("\t\tSuccessfully downloaded the blob snapshot.");
+
+        String downloadedPageBlobPath = String.format("%scopyof-%s", System.getProperty("java.io.tmpdir"), pageBlob.getName());
+        System.out.println(String.format("\t\tDownload the blob from \"%s\" to \"%s\".", pageBlob.getUri().toURL(), downloadedPageBlobPath));
+        pageBlob.downloadToFile(downloadedPageBlobPath);
+        new File(downloadedPageBlobPath).deleteOnExit();
+        System.out.println("\t\tSuccessfully downloaded the blob.");
+    }
+
+    /**
+     * Demonstrates the basic operations with a append blob.
+     *
+     * @param container The CloudBlobContainer object to work with
+     *
+     * @throws StorageException
+     * @throws IOException
+     * @throws IllegalArgumentException
+     * @throws URISyntaxException
+     */
+    private static void basicAppendBlobOperations(CloudBlobContainer container) throws StorageException, IOException, IllegalArgumentException, URISyntaxException {
+
+        // Create sample files for use
+        Random random = new Random();
+        System.out.println("\tCreating sample files between 128KB-256KB in size for upload demonstration.");
+        File tempFile1 = createTempLocalFile("appendblob-", ".tmp", (128 * 1024) + random.nextInt(128 * 1024));
+        System.out.println(String.format("\t\tSuccessfully created the file \"%s\".", tempFile1.getAbsolutePath()));
+        File tempFile2 = createTempLocalFile("appendblob-", ".tmp", (128 * 1024) + random.nextInt(128 * 1024));
+        System.out.println(String.format("\t\tSuccessfully created the file \"%s\".", tempFile2.getAbsolutePath()));
+
+        // Create an append blob and append data to it from the sample file
+        System.out.println("\n\tCreate an empty append blob and append data to it from the sample files.");
+        CloudAppendBlob appendBlob = container.getAppendBlobReference("appendblob.tmp");
+        try {
+            appendBlob.createOrReplace();
+            appendBlob.appendFromFile(tempFile1.getAbsolutePath());
+            appendBlob.appendFromFile(tempFile2.getAbsolutePath());
+            System.out.println("\t\tSuccessfully created the append blob and appended data to it.");
+        }
+        catch (StorageException s) {
+            if (s.getErrorCode().equals("FeatureNotSupportedByEmulator")) {
+                appendBlob = null;
+                System.out.println("\t\tThe append blob feature is currently not supported by the Storage Emulator.");
+                System.out.println("\t\tPlease run the sample against your Azure Storage account by updating the config.properties file.");
+            }
+            else {
+                throw s;
+            }
+        }
+
+        // Download the blob
+        if (appendBlob != null) {
+            System.out.println("\n\tDownload the blob.");
+            String downloadedAppendBlobPath = String.format("%scopyof-%s", System.getProperty("java.io.tmpdir"), appendBlob.getName());
+            System.out.println(String.format("\t\tDownload the blob from \"%s\" to \"%s\".", appendBlob.getUri().toURL(), downloadedAppendBlobPath));
+            appendBlob.downloadToFile(downloadedAppendBlobPath);
+            new File(downloadedAppendBlobPath).deleteOnExit();
+            System.out.println("\t\tSuccessfully downloaded the blob.");
+        }
+    }
+
+    /**
+     * Creates and returns a temporary local file for use by the sample.
+     *
+     * @param tempFileNamePrefix The prefix string to be used in generating the file's name.
+     * @param tempFileNameSuffix The suffix string to be used in generating the file's name.
+     * @param bytesToWrite The number of bytes to write to file.
+     * @return The newly created File object
+     *
+     * @throws IOException
+     * @throws IllegalArgumentException
+     */
+    private static File createTempLocalFile(String tempFileNamePrefix, String tempFileNameSuffix, int bytesToWrite) throws IOException, IllegalArgumentException{
+
+        File tempFile = null;
+        FileOutputStream tempFileOutputStream = null;
+        try {
+            // Create the temporary file
+            tempFile = File.createTempFile(tempFileNamePrefix, tempFileNameSuffix);
+
+            // Write random bytes to the file if requested
+            Random random = new Random();
+            byte[] randomBytes = new byte[4096];
+            tempFileOutputStream = new FileOutputStream(tempFile);
+            while (bytesToWrite > 0) {
+                random.nextBytes(randomBytes);
+                tempFileOutputStream.write(randomBytes, 0, (bytesToWrite > 4096) ? 4096 : bytesToWrite);
+                bytesToWrite -= 4096;
+            }
+        }
+        catch (Throwable t) {
+            throw t;
+        }
+        finally {
+            // Close the file output stream writer
+            if (tempFileOutputStream != null) {
+                tempFileOutputStream.close();
+            }
+
+            // Set the temporary file to delete on exit
+            if (tempFile != null) {
+                tempFile.deleteOnExit();
+            }
+        }
+
+        return tempFile;
     }
 
     /**
