@@ -14,7 +14,7 @@ Note: If you don't have a Microsoft Azure subscription you can get a FREE trial 
 
 ## Running this sample
 
-This sample can be run using either the Azure Storage Emulator or your Azure Storage account by updating the config.properties file with your "AccountName" and "Key".
+This sample can be run using either the Azure Storage Emulator, your Azure Storage account by updating the config.properties file with your "AccountName" and "Key", or using the Azure CLI.
 
 To run the sample using the Storage Emulator (default option - Only available on Microsoft Windows OS):
 
@@ -26,6 +26,14 @@ To run the sample using the Storage Service:
 1. Open the config.properties file and comment out the connection string for the emulator "UseDevelopmentStorage=True" and uncomment the connection string for the storage service "AccountName=[]".
 2. Create a Storage Account through the Azure Portal and provide your account name and account key in the config.properties file.
 3. Set breakpoints and run the project.
+
+To run the sample using Azure CLI (Bash):
+
+1. [Install Azure CLI](https://azure.microsoft.com/en-us/documentation/articles/xplat-cli-install/)
+2. [Login with Azure CLI](https://azure.microsoft.com/en-us/documentation/articles/xplat-cli-connect/)
+3. Run ./setup.sh
+4. mvn compile exec:java
+5. Run ./teardown.sh
 
 ## More information
 
