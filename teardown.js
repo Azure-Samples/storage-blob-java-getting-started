@@ -19,13 +19,13 @@ fs.readFile('resources/config.properties', (err, data) => {
 
 function deleteResourceGroup(uuidrg) {
   var resourceGroup = "rg" + uuidrg.substring(0,19);
-	var prc = spawn('azure', ['group', 'delete', '-q', resourceGroup]);
-	prc.stderr.on('data', (data) => {
-		errorHasOccurred = true;
-	  	process.stdout.write(`stderr: ${data}`);
-	});
+  var prc = spawn('azure', ['group', 'delete', '-q', resourceGroup]);
+  prc.stderr.on('data', (data) => {
+    errorHasOccurred = true;
+    process.stdout.write(`stderr: ${data}`);
+  });
 
-	prc.stdout.on('data', (data) => {
-	  	process.stdout.write(`${data}`);
-	});
+  prc.stdout.on('data', (data) => {
+    process.stdout.write(`${data}`);
+  });
 }

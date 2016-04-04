@@ -10,72 +10,44 @@ var storageAccountName = "sa" + uuidrg.substring(0,19);
 var location = "westus";
 var errorHasOccurred = false;
 var connectionData = "";
-createAzureResourceGroup();
 
-function createAzureResourceGroup() {
-	var prc = spawn('azure', ['group', 'create', resourceGroup, location]);
+executeAzureCLI(['group', 'create', resourceGroup, location], function() {
+	executeAzureCLI(['storage', 'account', 'create', storageAccountName, '-g', resourceGroup, '--type', 'RAGRS', '-l', location], function(code) {
+		executeAzureCLI(['storage', 'account', 'connectionstring', 'show', '--json', storageAccountName, '-g', resourceGroup], function(code) {
+			var connectionString = JSON.parse(connectionData).string;
+			var stream = fs.createWriteStream("resources/config.properties");
+			stream.once('open', function(fd) {
+			  stream.write('#{"uuid":"' + uuidrg + '"}\n');
+			  stream.write('#StorageConnectionString = UseDevelopmentStorage=true\n');
+			  stream.write('StorageConnectionString = ' + connectionString + '\n');
+			  stream.end();
+			});
+		},
+		function(data) {
+			console.log('connectionData: ' + connectionData);
+			connectionData += data;
+		});
+	});
+});
+
+function executeAzureCLI(params, closeCallback, stdOutCallback) {
+	var prc = spawn('azure', params);
 	prc.stderr.on('data', (data) => {
 		errorHasOccurred = true;
 	  	process.stdout.write(`stderr: ${data}`);
 	});
 
 	prc.stdout.on('data', (data) => {
-	  	process.stdout.write(`${data}`);
+  		var outData = `${data}`;
+		process.stdout.write(outData);
+	  	if(stdOutCallback) {
+	  		stdOutCallback(outData);
+	  	}
 	});
 
 	prc.on('close', (code) => {
-		if(!errorHasOccurred) {
-			createStorageAccount(); 
+		if(!errorHasOccurred && closeCallback) {
+			closeCallback(code);
 		}
-	});
-}
-
-function createStorageAccount() {
-	var prc = spawn('azure', ['storage', 'account', 'create', storageAccountName, '-g', resourceGroup, '--type', 'RAGRS', '-l', location]);
-	prc.stderr.on('data', (data) => {
-		errorHasOccurred = true;
-	  	process.stdout.write(`stderr: ${data}`);
-	});
-
-	prc.stdout.on('data', (data) => {
-	  	process.stdout.write(`${data}`);
-	});
-
-	prc.on('close', (code) => {
-		if(!errorHasOccurred) {
-			getStorageAccountConnStr(); 
-		}
-	});
-}
-
-function getStorageAccountConnStr() {
-	var prc = spawn('azure', ['storage', 'account', 'connectionstring', 'show', '--json', storageAccountName, '-g', resourceGroup]);
-	prc.stderr.on('data', (data) => {
-		errorHasOccurred = true;
-	  	console.log(`ps stderr: ${data}`);
-	  	process.stdout.write(`stderr: ${data}`);
-	});
-
-	prc.stdout.on('data', (data) => {
-	  	process.stdout.write(`${data}`);
-		connectionData += `${data}`;
-	});
-
-	prc.on('close', (code) => {
-		if(!errorHasOccurred) {
-			writeConfigProperties(); 
-		}
-	});
-
-}
-
-function writeConfigProperties() {
-	var connectionString = JSON.parse(connectionData).string;
-	var stream = fs.createWriteStream("resources/config.properties");
-	stream.once('open', function(fd) {
-	  stream.write('#{"uuid":"' + uuidrg + '"}\n');
-	  stream.write('#StorageConnectionString = UseDevelopmentStorage=true\n');
-	  stream.write('StorageConnectionString = ' + connectionString + '\n');
-	  stream.end();
 	});
 }
