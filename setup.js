@@ -10,30 +10,44 @@ var storageAccountName = "sa" + uuidrg.substring(0,19);
 var location = "westus";
 var errorHasOccurred = false;
 var connectionData = "";
+var wasInArmMode = false;
 
-executeAzureCLI(['group', 'create', resourceGroup, location], function() {
-	executeAzureCLI(['storage', 'account', 'create', storageAccountName, '-g', resourceGroup, '--type', 'RAGRS', '-l', location], function(code) {
-		executeAzureCLI(['storage', 'account', 'connectionstring', 'show', '--json', storageAccountName, '-g', resourceGroup], function(code) {
-			var connectionString = JSON.parse(connectionData).string;
-			var stream = fs.createWriteStream("resources/config.properties");
-			stream.once('open', function(fd) {
-			  stream.write('#{"uuid":"' + uuidrg + '"}\n');
-			  stream.write('#StorageConnectionString = UseDevelopmentStorage=true\n');
-			  stream.write('StorageConnectionString = ' + connectionString + '\n');
-			  stream.end();
+executeAzureCLI(['config', 'list'], function() {
+	executeAzureCLI(['config', 'mode', 'arm'], function() {
+		executeAzureCLI(['group', 'create', resourceGroup, location], function() {
+			executeAzureCLI(['storage', 'account', 'create', storageAccountName, '-g', resourceGroup, '--type', 'RAGRS', '-l', location], function(code) {
+				executeAzureCLI(['storage', 'account', 'connectionstring', 'show', '--json', storageAccountName, '-g', resourceGroup], function(code) {
+					try {
+						var connectionString = JSON.parse(connectionData).string;
+						var stream = fs.createWriteStream("resources/config.properties");
+						stream.once('open', function(fd) {
+						  stream.write('#{"uuid":"' + uuidrg + '"}\n');
+						  stream.write('#StorageConnectionString = UseDevelopmentStorage=true\n');
+						  stream.write('StorageConnectionString = ' + connectionString + '\n');
+						  stream.end();
+						});
+					}catch(ex) {
+					}
+					executeAzureCLI(['config', 'mode', 'asm']);
+				},
+				function(data) {
+					connectionData += data;
+				});
 			});
-		},
-		function(data) {
-			console.log('connectionData: ' + connectionData);
-			connectionData += data;
 		});
 	});
+}, function(data) {
+	wasInArmMode = data.match(/mode\s*arm/) != null			
 });
 
 function executeAzureCLI(params, closeCallback, stdOutCallback) {
 	var prc = spawn('azure', params);
 	prc.stderr.on('data', (data) => {
 		errorHasOccurred = true;
+		if(!wasInArmMode && !("config mode asm" + params.join(' '))) {
+			executeAzureCLI(['config', 'mode', 'asm']);
+		}
+
 	  	process.stdout.write(`stderr: ${data}`);
 	});
 
