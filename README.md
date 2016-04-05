@@ -27,13 +27,13 @@ To run the sample using the Storage Service:
 2. Create a Storage Account through the Azure Portal and provide your account name and account key in the config.properties file.
 3. Set breakpoints and run the project.
 
-To run the sample using Azure CLI (Bash):
+To run the sample using Azure CLI:
 
 1. [Install Azure CLI](https://azure.microsoft.com/en-us/documentation/articles/xplat-cli-install/)
 2. [Login with Azure CLI](https://azure.microsoft.com/en-us/documentation/articles/xplat-cli-connect/)
-3. Run ./setup.sh
+3. Run ./setup.js
 4. mvn compile exec:java
-5. Run ./teardown.sh
+5. Run ./teardown.js
 
 ## More information
 
