@@ -28,7 +28,10 @@ executeAzureCLI(['config', 'list'], function() {
 						});
 					}catch(ex) {
 					}
-					executeAzureCLI(['config', 'mode', 'asm']);
+
+					if(!wasInArmMode) {
+						executeAzureCLI(['config', 'mode', 'asm']);
+					}
 				},
 				function(data) {
 					connectionData += data;

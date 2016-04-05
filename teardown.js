@@ -18,7 +18,9 @@ function readUUIDFromConfigFile() {
         executeAzureCLI(['config', 'mode', 'arm'], function() {
           var resourceGroup = "rg" + uuidrg.substring(0,19);
           executeAzureCLI(['group', 'delete', '-q', resourceGroup], function() {
+              if(!wasInArmMode) {
                 executeAzureCLI(['config', 'mode', 'asm']);
+              }
               });
           });
       }, function(data) {
