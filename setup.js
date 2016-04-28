@@ -47,7 +47,7 @@ function executeAzureCLI(params, closeCallback, stdOutCallback) {
 	var prc = spawn('azure', params);
 	prc.stderr.on('data', (data) => {
 		errorHasOccurred = true;
-		if(!wasInArmMode && !("config mode asm" + params.join(' '))) {
+		if(!wasInArmMode && ("config mode asm" != params.join(' '))) {
 			executeAzureCLI(['config', 'mode', 'asm']);
 		}
 
