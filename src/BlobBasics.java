@@ -19,8 +19,6 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.net.URISyntaxException;
 import java.security.InvalidKeyException;
 import java.util.ArrayList;
@@ -28,7 +26,6 @@ import java.util.Base64;
 import java.util.Properties;
 import java.util.Random;
 import java.util.Scanner;
-import java.util.UUID;
 
 import com.microsoft.azure.storage.CloudStorageAccount;
 import com.microsoft.azure.storage.StorageException;
@@ -46,65 +43,35 @@ import com.microsoft.azure.storage.blob.DeleteSnapshotsOption;
 import com.microsoft.azure.storage.blob.ListBlobItem;
 import com.microsoft.azure.storage.blob.PageRange;
 
-/*
- * Azure Storage Blob Sample - Demonstrate how to use the Blob Storage service.
- * Blob storage stores unstructured data such as text, binary data, documents or media files.
- * Blobs can be accessed from anywhere in the world via HTTP or HTTPS.
- *
- * Documentation References:
- *  - What is a Storage Account - http://azure.microsoft.com/en-us/documentation/articles/storage-whatis-account/
- *  - Getting Started with Blobs - http://azure.microsoft.com/en-us/documentation/articles/storage-java-how-to-use-blob-storage/
- *  - Blob Service Concepts - http://msdn.microsoft.com/en-us/library/dd179376.aspx
- *  - Blob Service REST API - http://msdn.microsoft.com/en-us/library/dd135733.aspx
- *  - Blob Service Java API - http://azure.github.io/azure-storage-java/
- *  - Delegating Access with Shared Access Signatures - http://azure.microsoft.com/en-us/documentation/articles/storage-dotnet-shared-access-signature-part-1/
- *  - Storage Emulator - http://azure.microsoft.com/en-us/documentation/articles/storage-use-emulator/
- *
- * Instructions:
- *      This sample can be run using either the Azure Storage Emulator or your Azure Storage
- *      account by updating the config.properties file with your "AccountName" and "Key".
- *
- *      To run the sample using the Storage Emulator (default option - Only available on Microsoft Windows OS)
- *          1.  Start the Azure Storage Emulator by pressing the Start button or the Windows key and searching for it
- *              by typing "Azure Storage Emulator". Select it from the list of applications to start it.
- *          2.  Set breakpoints and run the project.
- *
- *      To run the sample using the Storage Service
- *          1.  Open the config.properties file and comment out the connection string for the emulator (UseDevelopmentStorage=True) and
- *              uncomment the connection string for the storage service (AccountName=[]...)
- *          2.  Create a Storage Account through the Azure Portal and provide your [AccountName] and [AccountKey] in the config.properties file.
- *              See https://azure.microsoft.com/en-us/documentation/articles/storage-create-storage-account/ for more information.
- *          3.  Set breakpoints and run the project.
+/**
+ * This sample illustrates basic usage of the various Blob Primitives provided
+ * in the Storage Client Library including CloudBlobContainer, CloudBlockBlob
+ * and CloudBlobClient.
  */
 public class BlobBasics {
 
     /**
      * Azure Storage Blob Sample
      *
-     * @param args No input arguments are expected from users.
      * @throws Exception
      */
-    public static void main(String[] args) throws Exception {
+    public static void runSamples() throws Exception {
 
-        System.out.println("Azure Storage Blob sample - Starting.");
+        System.out.println("Azure Storage Blob basic sample - Starting.");
 
-        Scanner scan = null;
-        CloudBlobClient blobClient = null;
+        CloudBlobClient blobClient;
         CloudBlobContainer container1 = null;
         CloudBlobContainer container2 = null;
 
         try {
-            // Create a scanner for user input
-            scan = new Scanner(System.in);
-
             // Create a blob client for interacting with the blob service
-            blobClient = getBlobClientReference();
+            blobClient = BlobClientProvider.getBlobClientReference();
 
             // Create new containers with randomized names
             System.out.println("\nCreate container for the sample demonstration");
-            container1 = createContainer(blobClient, createRandomName("blobbasics-"));
+            container1 = createContainer(blobClient, DataGenerator.createRandomName("blobbasics-"));
             System.out.println(String.format("\tSuccessfully created the container \"%s\".", container1.getName()));
-            container2 = createContainer(blobClient, createRandomName("blobbasics-"));
+            container2 = createContainer(blobClient, DataGenerator.createRandomName("blobbasics-"));
             System.out.println(String.format("\tSuccessfully created the container \"%s\".", container2.getName()));
 
             // Demonstrate block blobs
@@ -183,12 +150,11 @@ public class BlobBasics {
 
         }
         catch (Throwable t) {
-            printException(t);
+            PrintHelper.printException(t);
         }
         finally {
             // Delete the containers (If you do not want to delete the container comment out the block of code below)
-            System.out.print("\nDelete the containers. Press any key to continue...");
-            scan.nextLine();
+            System.out.print("\nDelete the containers.");
 
             if (container1 != null && container1.deleteIfExists() == true) {
                 System.out.println(String.format("\tSuccessfully deleted the container: %s", container1.getName()));
@@ -197,61 +163,9 @@ public class BlobBasics {
             if (container2 != null && container2.deleteIfExists() == true) {
                 System.out.println(String.format("\tSuccessfully deleted the container: %s", container2.getName()));
             }
-
-            // Close the scanner
-            if (scan != null) {
-                scan.close();
-            }
         }
 
-        System.out.println("\nAzure Storage Blob sample - Completed.\n");
-    }
-
-    /**
-     * Validates the connection string and returns the storage blob client.
-     * The connection string must be in the Azure connection string format.
-     *
-     * @return The newly created CloudBlobClient object
-     *
-     * @throws RuntimeException
-     * @throws IOException
-     * @throws URISyntaxException
-     * @throws IllegalArgumentException
-     * @throws InvalidKeyException
-     */
-    private static CloudBlobClient getBlobClientReference() throws RuntimeException, IOException, IllegalArgumentException, URISyntaxException, InvalidKeyException {
-
-        // Retrieve the connection string
-        Properties prop = new Properties();
-        try {
-            InputStream propertyStream = BlobBasics.class.getClassLoader().getResourceAsStream("config.properties");
-            if (propertyStream != null) {
-                prop.load(propertyStream);
-            }
-            else {
-                throw new RuntimeException();
-            }
-        } catch (RuntimeException|IOException e) {
-            System.out.println("\nFailed to load config.properties file.");
-            throw e;
-        }
-
-        CloudStorageAccount storageAccount;
-        try {
-            storageAccount = CloudStorageAccount.parse(prop.getProperty("StorageConnectionString"));
-        }
-        catch (IllegalArgumentException|URISyntaxException e) {
-            System.out.println("\nConnection string specifies an invalid URI.");
-            System.out.println("Please confirm the connection string is in the Azure connection string format.");
-            throw e;
-        }
-        catch (InvalidKeyException e) {
-            System.out.println("\nConnection string specifies an invalid key.");
-            System.out.println("Please confirm the AccountName and AccountKey in the connection string are valid.");
-            throw e;
-        }
-
-        return storageAccount.createCloudBlobClient();
+        System.out.println("\nAzure Storage Blob basic sample - Completed.\n");
     }
 
     /**
@@ -305,11 +219,11 @@ public class BlobBasics {
         Random random = new Random();
 
         System.out.println("\tCreating sample files between 128KB-256KB in size for upload demonstration.");
-        File tempFile1 = createTempLocalFile("blockblob-", ".tmp", (128 * 1024) + random.nextInt(128 * 1024));
+        File tempFile1 = DataGenerator.createTempLocalFile("blockblob-", ".tmp", (128 * 1024) + random.nextInt(128 * 1024));
         System.out.println(String.format("\t\tSuccessfully created the file \"%s\".", tempFile1.getAbsolutePath()));
-        File tempFile2 = createTempLocalFile("blockblob-", ".tmp", (128 * 1024) + random.nextInt(128 * 1024));
+        File tempFile2 = DataGenerator.createTempLocalFile("blockblob-", ".tmp", (128 * 1024) + random.nextInt(128 * 1024));
         System.out.println(String.format("\t\tSuccessfully created the file \"%s\".", tempFile2.getAbsolutePath()));
-        File tempFile3 = createTempLocalFile("blockblob-", ".tmp", (128 * 1024) + random.nextInt(128 * 1024));
+        File tempFile3 = DataGenerator.createTempLocalFile("blockblob-", ".tmp", (128 * 1024) + random.nextInt(128 * 1024));
         System.out.println(String.format("\t\tSuccessfully created the file \"%s\".", tempFile3.getAbsolutePath()));
 
         // Upload a sample file as a block blob
@@ -349,7 +263,7 @@ public class BlobBasics {
 
         // Create sample file for copy demonstration
         System.out.println("\n\tCreating sample file between 10MB-15MB in size for abort copy demonstration.");
-        File tempFile4 = createTempLocalFile("blockblob-", ".tmp", (10 * 1024 * 1024) + random.nextInt(5 * 1024 * 1024));
+        File tempFile4 = DataGenerator.createTempLocalFile("blockblob-", ".tmp", (10 * 1024 * 1024) + random.nextInt(5 * 1024 * 1024));
         System.out.println(String.format("\t\tSuccessfully created the file \"%s\".", tempFile4.getAbsolutePath()));
 
         // Upload a sample file as a block blob
@@ -427,7 +341,7 @@ public class BlobBasics {
 
         // Create sample files for use. We use a file whose size is aligned to 512 bytes since page blobs are expected to be aligned to 512 byte pages.
         System.out.println("\tCreating sample file 128KB in size (aligned to 512 bytes) for upload demonstration.");
-        File tempFile = createTempLocalFile("pageblob-", ".tmp", (128 * 1024));
+        File tempFile = DataGenerator.createTempLocalFile("pageblob-", ".tmp", (128 * 1024));
         System.out.println(String.format("\t\tSuccessfully created the file \"%s\".", tempFile.getAbsolutePath()));
 
         // Upload the sample file sparsely as a page blob (Only upload certain ranges of the file)
@@ -525,9 +439,9 @@ public class BlobBasics {
         // Create sample files for use
         Random random = new Random();
         System.out.println("\tCreating sample files between 128KB-256KB in size for upload demonstration.");
-        File tempFile1 = createTempLocalFile("appendblob-", ".tmp", (128 * 1024) + random.nextInt(128 * 1024));
+        File tempFile1 = DataGenerator.createTempLocalFile("appendblob-", ".tmp", (128 * 1024) + random.nextInt(128 * 1024));
         System.out.println(String.format("\t\tSuccessfully created the file \"%s\".", tempFile1.getAbsolutePath()));
-        File tempFile2 = createTempLocalFile("appendblob-", ".tmp", (128 * 1024) + random.nextInt(128 * 1024));
+        File tempFile2 = DataGenerator.createTempLocalFile("appendblob-", ".tmp", (128 * 1024) + random.nextInt(128 * 1024));
         System.out.println(String.format("\t\tSuccessfully created the file \"%s\".", tempFile2.getAbsolutePath()));
 
         // Create an append blob and append data to it from the sample file
@@ -618,79 +532,8 @@ public class BlobBasics {
         }
     }
 
-    /**
-     * Creates and returns a randomized name based on the prefix file for use by the sample.
-     *
-     * @param namePrefix The prefix string to be used in generating the name.
-     * @return The randomized name
-     */
-    private static String createRandomName(String namePrefix) {
 
-        return namePrefix + UUID.randomUUID().toString().replace("-", "");
-    }
 
-    /**
-     * Creates and returns a temporary local file for use by the sample.
-     *
-     * @param tempFileNamePrefix The prefix string to be used in generating the file's name.
-     * @param tempFileNameSuffix The suffix string to be used in generating the file's name.
-     * @param bytesToWrite The number of bytes to write to file.
-     * @return The newly created File object
-     *
-     * @throws IOException
-     * @throws IllegalArgumentException
-     */
-    private static File createTempLocalFile(String tempFileNamePrefix, String tempFileNameSuffix, int bytesToWrite) throws IOException, IllegalArgumentException{
 
-        File tempFile = null;
-        FileOutputStream tempFileOutputStream = null;
-        try {
-            // Create the temporary file
-            tempFile = File.createTempFile(tempFileNamePrefix, tempFileNameSuffix);
 
-            // Write random bytes to the file if requested
-            Random random = new Random();
-            byte[] randomBytes = new byte[4096];
-            tempFileOutputStream = new FileOutputStream(tempFile);
-            while (bytesToWrite > 0) {
-                random.nextBytes(randomBytes);
-                tempFileOutputStream.write(randomBytes, 0, (bytesToWrite > 4096) ? 4096 : bytesToWrite);
-                bytesToWrite -= 4096;
-            }
-        }
-        catch (Throwable t) {
-            throw t;
-        }
-        finally {
-            // Close the file output stream writer
-            if (tempFileOutputStream != null) {
-                tempFileOutputStream.close();
-            }
-
-            // Set the temporary file to delete on exit
-            if (tempFile != null) {
-                tempFile.deleteOnExit();
-            }
-        }
-
-        return tempFile;
-    }
-
-    /**
-     * Print the exception stack trace
-     *
-     * @param ex Exception to be printed
-     */
-    public static void printException(Throwable t) {
-
-        StringWriter stringWriter = new StringWriter();
-        PrintWriter printWriter = new PrintWriter(stringWriter);
-        t.printStackTrace(printWriter);
-        if (t instanceof StorageException) {
-            if (((StorageException) t).getExtendedErrorInformation() != null) {
-                System.out.println(String.format("\nError: %s", ((StorageException) t).getExtendedErrorInformation().getErrorMessage()));
-            }
-        }
-        System.out.println(String.format("Exception details:\n%s", stringWriter.toString()));
-    }
 }
