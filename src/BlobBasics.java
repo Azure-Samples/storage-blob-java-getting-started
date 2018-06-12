@@ -528,6 +528,7 @@ public class BlobBasics {
         CopyStatus copyStatus = CopyStatus.PENDING;
         while (copyStatus == CopyStatus.PENDING) {
             Thread.sleep(1000);
+            blob.downloadAttributes();
             copyStatus = blob.getCopyState().getStatus();
         }
     }
