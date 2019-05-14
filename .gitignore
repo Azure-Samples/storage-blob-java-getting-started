@@ -34,3 +34,7 @@ local.properties
 
 # TeXlipse plugin
 .texlipse
+
+# VS Code
+.vscode/*
+src/.vs/*
