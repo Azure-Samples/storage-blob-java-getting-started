@@ -7,11 +7,18 @@
   <description>Basic operations with Azure Storage Blob Service</description>
   <url>https://github.com/Azure-Samples/storage-blob-java-getting-started/</url>
   <dependencies>
-    <dependency>
-      <groupId>com.microsoft.azure</groupId>
-      <artifactId>azure-storage</artifactId>
-      <version>8.3.0</version>
-    </dependency>
+      <!-- https://mvnrepository.com/artifact/com.azure/azure-storage-blob -->
+      <dependency>
+          <groupId>com.azure</groupId>
+          <artifactId>azure-storage-blob</artifactId>
+          <version>12.11.0-beta.1</version>
+      </dependency>
+      <!-- https://mvnrepository.com/artifact/com.azure/azure-storage-common -->
+      <dependency>
+          <groupId>com.azure</groupId>
+          <artifactId>azure-storage-common</artifactId>
+          <version>12.11.0-beta.1</version>
+      </dependency>
   </dependencies>
   <build>
     <sourceDirectory>src</sourceDirectory>
