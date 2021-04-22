@@ -13,9 +13,6 @@
   limitations under the License.
  */
 
-//import com.microsoft.azure.storage.*;
-//import com.microsoft.azure.storage.blob.*;
-
 import com.azure.core.util.Context;
 import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobContainerClient;
@@ -32,7 +29,6 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * This sample illustrates advanced usage of the Azure blob storage service.
@@ -113,7 +109,7 @@ class BlobAdvanced {
             }
 
             System.out.println("List containers");
-            for (final BlobContainerItem container : blobServiceClient.listBlobContainers().stream().filter(blobContainerItem -> blobContainerItem.getName().startsWith(prefix)).collect(Collectors.toList())) {
+            for (final BlobContainerItem container : blobServiceClient.listBlobContainers(new ListBlobContainersOptions().setPrefix(prefix),(Duration)null)) {
                 System.out.printf("container name: %s%n", container.getName());
             }
         } finally {

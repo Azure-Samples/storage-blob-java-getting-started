@@ -17,6 +17,7 @@
 import java.io.*;
 import java.net.URISyntaxException;
 import java.security.InvalidKeyException;
+import java.time.Duration;
 import java.util.*;
 
 import com.azure.core.util.Context;
@@ -108,7 +109,7 @@ public class BlobBasics {
 
             // Enumerate all containers starting with the prefix "blobbasics-" and list all blobs
             System.out.println("\nEnumerate all containers and starting with the prefix \"blobbasics-\" list all blobs");
-            blobServiceClient.listBlobContainers().stream().filter(blobContainerItem -> blobContainerItem.getName().startsWith("blobbasics-")).forEach(blobContainerItem -> {
+            blobServiceClient.listBlobContainers(new ListBlobContainersOptions().setPrefix("blobbasics-"), (Duration)null).forEach(blobContainerItem -> {
                 System.out.println(String.format("\tContainer: %s", blobContainerItem.getName()));
                 BlobContainerClient containerItem = blobServiceClient.getBlobContainerClient(blobContainerItem.getName());
                 containerItem.listBlobs().forEach(blobItem -> {
