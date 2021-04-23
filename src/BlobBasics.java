@@ -212,37 +212,37 @@ public class BlobBasics {
 
         // Upload a sample file as a block blob
         System.out.println("\n\tUpload a sample file as a block blob.");
-        BlobClient blockBlob1 = container.getBlobClient("blockblob1.tmp");
-        blockBlob1.uploadFromFile(tempFile1.getAbsolutePath());
+        BlobClient blobClient = container.getBlobClient("blockblob1.tmp");
+        blobClient.uploadFromFile(tempFile1.getAbsolutePath());
         System.out.println("\t\tSuccessfully uploaded the blob.");
 
         // Create a read-only snapshot of the blob
         System.out.println("\n\tCreate a read-only snapshot of the blob.");
-        BlobClientBase blockBlob1Snapshot = blockBlob1.createSnapshot();
+        BlobClientBase blockBlob1Snapshot = blobClient.createSnapshot();
         System.out.println("\t\tSuccessfully created a snapshot of the blob.");
 
         // Modify the blob by overwriting it
         System.out.println("\n\tOverwrite the blob by uploading the second sample file.");
-        blockBlob1.uploadFromFile(tempFile2.getAbsolutePath(),true);
+        blobClient.uploadFromFile(tempFile2.getAbsolutePath(),true);
         System.out.println("\t\tSuccessfully overwrote the blob.");
 
         // Acquire a lease on the blob so that another client cannot write to it or delete it
         System.out.println("\n\tAcquiring a lease on the blog to prevent writes and deletes.");
-        BlobLeaseClient blockLeaseBlob1 = new BlobLeaseClientBuilder().blobClient(blockBlob1).buildClient();
-        blockLeaseBlob1.acquireLease(30);
-        System.out.println(String.format("\t\tSuccessfully acquired a lease on blob %s. Lease state: %s.", blockBlob1.getBlobName(), blockBlob1.getProperties().getLeaseStatus().toString()));
-        blockLeaseBlob1.breakLease();
-        System.out.println(String.format("\t\tSuccessfully broke the lease on blob %s. Lease state: %s.", blockBlob1.getBlobName(), blockBlob1.getProperties().getLeaseStatus().toString()));
+        BlobLeaseClient blockLeaseBlob = new BlobLeaseClientBuilder().blobClient(blobClient).buildClient();
+        blockLeaseBlob.acquireLease(30);
+        System.out.println(String.format("\t\tSuccessfully acquired a lease on blob %s. Lease state: %s.", blobClient.getBlobName(), blobClient.getProperties().getLeaseStatus().toString()));
+        blockLeaseBlob.breakLease();
+        System.out.println(String.format("\t\tSuccessfully broke the lease on blob %s. Lease state: %s.", blobClient.getBlobName(), blobClient.getProperties().getLeaseStatus().toString()));
 
         // Upload a sample file as a block blob using a block list
         System.out.println("\n\tUpload the third sample file as a block blob using a block list.");
-        BlockBlobClient blockBlob2 = container.getBlobClient("blockblob2.tmp").getBlockBlobClient();
-        uploadFileBlocksAsBlockBlob(blockBlob2, tempFile3.getAbsolutePath());
+        BlockBlobClient blockBlobClient1 = container.getBlobClient("blockblob2.tmp").getBlockBlobClient();
+        uploadFileBlocksAsBlockBlob(blockBlobClient1, tempFile3.getAbsolutePath());
         System.out.println("\t\tSuccessfully uploaded the blob using a block list.");
 
         // Download the block list for the block blob
         System.out.println("\n\tDownload the block list.");
-        for (Block blockEntry : blockBlob2.listBlocks(BlockListType.COMMITTED).getCommittedBlocks()) {
+        for (Block blockEntry : blockBlobClient1.listBlocks(BlockListType.COMMITTED).getCommittedBlocks()) {
             System.out.println(String.format("\t\tBlock id: %s (%s), size: %s", blockEntry.getName(), blockEntry.getName(), blockEntry.getSizeLong()));
         }
 
@@ -253,24 +253,23 @@ public class BlobBasics {
 
         // Upload a sample file as a block blob
         System.out.println("\n\tUpload the sample file as a block blob.");
-        BlockBlobClient blockBlob3 = container.getBlobClient("blockblob3.tmp").getBlockBlobClient();
+        BlockBlobClient blockBlobClient2 = container.getBlobClient("blockblob3.tmp").getBlockBlobClient();
 //        CloudBlockBlob blockBlob3 = container.getBlockBlobReference("blockblob3.tmp");
-        tempFile4 = new File("tempFile4.getAbsolutePath()");
-        blockBlob3.upload(new FileInputStream(tempFile4),tempFile4.length());
+        blockBlobClient2.upload(new FileInputStream(tempFile4),tempFile4.length());
         System.out.println("\t\tSuccessfully uploaded the blob.");
 
         // Copy the blob
-        System.out.println(String.format("\n\tCopying blob \"%s\".", blockBlob3.getBlobUrl()));
-        BlockBlobClient blockBlob3Copy = container.getBlobClient(blockBlob3.getBlobName() + ".copy").getBlockBlobClient();
-        blockBlob3Copy.beginCopy(new BlobBeginCopyOptions(blockBlob3.getBlobUrl()));
+        System.out.println(String.format("\n\tCopying blob \"%s\".", blockBlobClient2.getBlobUrl()));
+        BlockBlobClient blockBlob3Copy = container.getBlobClient(blockBlobClient2.getBlobName() + ".copy").getBlockBlobClient();
+        blockBlob3Copy.beginCopy(new BlobBeginCopyOptions(blockBlobClient2.getBlobUrl()));
         waitForCopyToComplete(blockBlob3Copy);
         System.out.println("\t\tSuccessfully copied the blob.");
 
         // Abort copying the blob
-        System.out.println(String.format("\n\tAborting while copying blob \"%s\".", blockBlob3.getBlobUrl()));
-        BlockBlobClient blockBlob3CopyAborted = container.getBlobClient(blockBlob3.getBlobName() + ".copyaborted").getBlockBlobClient();
+        System.out.println(String.format("\n\tAborting while copying blob \"%s\".", blockBlobClient2.getBlobUrl()));
+        BlockBlobClient blockBlob3CopyAborted = container.getBlobClient(blockBlobClient2.getBlobName() + ".copyaborted").getBlockBlobClient();
         boolean copyAborted = true;
-        String copyId = blockBlob3CopyAborted.beginCopy(new BlobBeginCopyOptions(blockBlob3.getBlobUrl())).poll().getValue().getCopyId();
+        String copyId = blockBlob3CopyAborted.beginCopy(new BlobBeginCopyOptions(blockBlobClient2.getBlobUrl())).poll().getValue().getCopyId();
         try {
             blockBlob3CopyAborted.abortCopyFromUrl(copyId);
         }
@@ -296,21 +295,21 @@ public class BlobBasics {
         new File(downloadedBlobPath).deleteOnExit();
         System.out.println("\t\t\tSuccessfully downloaded the blob snapshot.");
 
-        downloadedBlobPath = String.format("%scopyof-%s", System.getProperty("java.io.tmpdir"), blockBlob1.getBlobName());
-        System.out.println(String.format("\t\tDownload the blob from \"%s\" to \"%s\".", blockBlob1.getBlobUrl(), downloadedBlobPath));
-        blockBlob1.downloadToFile(downloadedBlobPath);
+        downloadedBlobPath = String.format("%scopyof-%s", System.getProperty("java.io.tmpdir"), blobClient.getBlobName());
+        System.out.println(String.format("\t\tDownload the blob from \"%s\" to \"%s\".", blobClient.getBlobUrl(), downloadedBlobPath));
+        blobClient.downloadToFile(downloadedBlobPath);
         new File(downloadedBlobPath).deleteOnExit();
         System.out.println("\t\t\tSuccessfully downloaded the blob.");
 
-        downloadedBlobPath = String.format("%scopyof-%s", System.getProperty("java.io.tmpdir"), blockBlob2.getBlobName());
-        System.out.println(String.format("\t\tDownload the blob from \"%s\" to \"%s\".", blockBlob2.getBlobUrl(), downloadedBlobPath));
-        blockBlob2.downloadToFile(downloadedBlobPath);
+        downloadedBlobPath = String.format("%scopyof-%s", System.getProperty("java.io.tmpdir"), blockBlobClient1.getBlobName());
+        System.out.println(String.format("\t\tDownload the blob from \"%s\" to \"%s\".", blockBlobClient1.getBlobUrl(), downloadedBlobPath));
+        blockBlobClient1.downloadToFile(downloadedBlobPath);
         new File(downloadedBlobPath).deleteOnExit();
         System.out.println("\t\t\tSuccessfully downloaded the blob.");
 
         // Delete a blob and its snapshots
-        System.out.println(String.format("\n\tDelete the blob \"%s\" its snapshots.", blockBlob1.getBlobName()));
-        blockBlob1.deleteWithResponse(DeleteSnapshotsOptionType.INCLUDE, null, null, null);
+        System.out.println(String.format("\n\tDelete the blob \"%s\" its snapshots.", blobClient.getBlobName()));
+        blobClient.deleteWithResponse(DeleteSnapshotsOptionType.INCLUDE, null, null, null);
         System.out.println("\t\tSuccessfully deleted the blob and its snapshots.");
     }
 

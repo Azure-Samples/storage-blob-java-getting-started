@@ -109,8 +109,8 @@ class BlobAdvanced {
             }
 
             System.out.println("List containers");
-            for (final BlobContainerItem container : blobServiceClient.listBlobContainers(new ListBlobContainersOptions().setPrefix(prefix),(Duration)null)) {
-                System.out.printf("container name: %s%n", container.getName());
+            for (final BlobContainerItem blobContainerItem : blobServiceClient.listBlobContainers(new ListBlobContainersOptions().setPrefix(prefix), (Duration) null)) {
+                System.out.printf("container name: %s%n", blobContainerItem.getName());
             }
         } finally {
             System.out.println("Delete containers");
@@ -209,25 +209,25 @@ class BlobAdvanced {
     private void containerProperties(BlobServiceClient blobServiceClient) throws URISyntaxException, BlobStorageException {
         // Get a reference to a container
         // The container name must be lower case
-        BlobContainerClient container = blobServiceClient.getBlobContainerClient("blobadvancedcontainer"
+        BlobContainerClient containerClient = blobServiceClient.getBlobContainerClient("blobadvancedcontainer"
                 + UUID.randomUUID().toString().replace("-", ""));
         try {
             System.out.println("Create container");
             // Create the container if it does not exist
-            if (!container.exists()) {
-                container.create();
+            if (!containerClient.exists()) {
+                containerClient.create();
             }
 
             System.out.println("Get container properties");
-            BlobContainerProperties properties = container.getProperties();
+            BlobContainerProperties properties = containerClient.getProperties();
             System.out.printf("Etag: %s%n", properties.getETag());
             System.out.printf("Last modified: %s%n", properties.getLastModified());
             System.out.printf("Lease state: %s%n", properties.getLeaseState());
             System.out.printf("Lease status: %s%n", properties.getLeaseStatus());
         } finally {
-            if (container.exists()) {
-                container.delete();
-                System.out.println(String.format("Successfully deleted the container: %s", container.getBlobContainerName()));
+            if (containerClient.exists()) {
+                containerClient.delete();
+                System.out.println(String.format("Successfully deleted the container: %s", containerClient.getBlobContainerName()));
             }
         }
     }
@@ -241,30 +241,29 @@ class BlobAdvanced {
         // Get a reference to a container
         // The container name must be lower case
         String containerName = "blobadvancedcontainer" + UUID.randomUUID().toString().replace("-", "");
-        BlobContainerClient container = blobServiceClient.getBlobContainerClient(containerName);
+        BlobContainerClient containerClient = blobServiceClient.getBlobContainerClient(containerName);
         try {
             System.out.println("Create container");
             // Create the container if it does not exist
-            if (!container.exists()) {
-                container.create();
+            if (!containerClient.exists()) {
+                containerClient.create();
             }
             System.out.println("Set container metadata");
-            HashMap<String,String> metadataMap = container.getProperties().getMetadata() != null ? (HashMap)container.getProperties().getMetadata() : new HashMap<String,String>();
+            Map<String, String> metadataMap = containerClient.getProperties().getMetadata();
+            metadataMap = metadataMap != null ? metadataMap : new HashMap();
             metadataMap.put("key1", "value1");
             metadataMap.put("foo", "bar");
-            container.setMetadata(metadataMap);
+            containerClient.setMetadata(metadataMap);
             System.out.println("Get container metadata:");
-            Map<String, String> metadata = container.getProperties().getMetadata();
-            Iterator it = metadata.entrySet().iterator();
-            while (it.hasNext()) {
-                Map.Entry pair = (Map.Entry) it.next();
+            Map<String, String> metadata = containerClient.getProperties().getMetadata();
+            metadata.entrySet().forEach(pair -> {
                 System.out.printf(" %s = %s%n", pair.getKey(), pair.getValue());
-                it.remove();
-            }
+            });
+            metadata.clear();
         } finally {
-            if (container.exists()) {
-                container.delete();
-                System.out.println(String.format("Successfully deleted the container: %s", container.getBlobContainerName()));
+            if (containerClient.exists()) {
+                containerClient.delete();
+                System.out.println(String.format("Successfully deleted the container: %s", containerClient.getBlobContainerName()));
             }
         }
     }
@@ -278,30 +277,30 @@ class BlobAdvanced {
         // Get a reference to a container
         // The container name must be lower case
         String containerName = "blobadvancedcontainer" + UUID.randomUUID().toString().replace("-", "");
-        BlobContainerClient container = blobServiceClient.getBlobContainerClient(containerName);
+        BlobContainerClient containerClient = blobServiceClient.getBlobContainerClient(containerName);
 
         try {
             System.out.println("Create container");
             // Create the container if it does not exist
-            if (!container.exists()) {
-                container.create();
+            if (!containerClient.exists()) {
+                containerClient.create();
             }
 
             System.out.println("Set container permissions");
             OffsetDateTime startOn = OffsetDateTime.now(ZoneOffset.UTC);
             OffsetDateTime expiresOn = startOn.plusMinutes(30);
-            container.getAccessPolicy().getIdentifiers().forEach(blobSignedIdentifier -> {
+            containerClient.getAccessPolicy().getIdentifiers().forEach(blobSignedIdentifier -> {
                 blobSignedIdentifier.setAccessPolicy(new BlobAccessPolicy().setStartsOn(startOn).setExpiresOn(expiresOn).setPermissions("lc"));
             });
-            container.setAccessPolicy(PublicAccessType.CONTAINER, container.getAccessPolicy().getIdentifiers());
+            containerClient.setAccessPolicy(PublicAccessType.CONTAINER, containerClient.getAccessPolicy().getIdentifiers());
 
             System.out.println("Wait 30 seconds for the container permissions to take effect");
             Thread.sleep(30000);
 
             System.out.println("Get container permissions");
             // Get container permissions
-            System.out.printf(" Public access: %s%n", container.getAccessPolicy().getBlobAccessType());
-            container.getAccessPolicy().getIdentifiers().forEach(blobSignedIdentifier -> {
+            System.out.printf(" Public access: %s%n", containerClient.getAccessPolicy().getBlobAccessType());
+            containerClient.getAccessPolicy().getIdentifiers().forEach(blobSignedIdentifier -> {
                 System.out.printf("  Permissions: %s%n", blobSignedIdentifier.getAccessPolicy().getPermissions());
                 System.out.printf("  Start: %s%n", blobSignedIdentifier.getAccessPolicy().getStartsOn());
                 System.out.printf("  Expiry: %s%n", blobSignedIdentifier.getAccessPolicy().getExpiresOn());
@@ -309,11 +308,11 @@ class BlobAdvanced {
                 blobSignedIdentifier.setAccessPolicy(new BlobAccessPolicy());
             });
             System.out.println("Clear container permissions");
-            container.setAccessPolicy(PublicAccessType.CONTAINER, container.getAccessPolicy().getIdentifiers());
+            containerClient.setAccessPolicy(PublicAccessType.CONTAINER, containerClient.getAccessPolicy().getIdentifiers());
         } finally {
-            if (container.exists()) {
-                container.delete();
-                System.out.println(String.format("Successfully deleted the container: %s", container.getBlobContainerName()));
+            if (containerClient.exists()) {
+                containerClient.delete();
+                System.out.println(String.format("Successfully deleted the container: %s", containerClient.getBlobContainerName()));
             }
         }
     }
@@ -327,13 +326,13 @@ class BlobAdvanced {
         // Get a reference to a container
         // The container name must be lower case
         String containerName = "blobadvancedcontainer" + UUID.randomUUID().toString().replace("-", "");
-        BlobContainerClient container = blobServiceClient.getBlobContainerClient(containerName);
+        BlobContainerClient containerClient = blobServiceClient.getBlobContainerClient(containerName);
 
         try {
             System.out.println("Create container");
             // Create the container if it does not exist
-            if (!container.exists()) {
-                container.create();
+            if (!containerClient.exists()) {
+                containerClient.create();
             }
 
             Random random = new Random();
@@ -341,7 +340,7 @@ class BlobAdvanced {
             System.out.println(String.format("Successfully created the file \"%s\"", tempFile.getAbsolutePath()));
 
             System.out.println("Use a sample file as a block blob");
-            BlobClient blob = container.getBlobClient("blockblob1.tmp");
+            BlobClient blob = containerClient.getBlobClient("blockblob1.tmp");
 
             // Set blob properties
             System.out.println("Set blob properties");
@@ -362,9 +361,9 @@ class BlobAdvanced {
             System.out.printf("Lease state: %s%n", properties.getLeaseState());
             System.out.printf("Lease status: %s%n", properties.getLeaseStatus());
         } finally {
-            if (container.exists()) {
-                container.delete();
-                System.out.println(String.format("Successfully deleted the container: %s", container.getBlobContainerName()));
+            if (containerClient.exists()) {
+                containerClient.delete();
+                System.out.println(String.format("Successfully deleted the container: %s", containerClient.getBlobContainerName()));
             }
         }
     }
@@ -377,14 +376,14 @@ class BlobAdvanced {
     private void blobMetadata(BlobServiceClient blobServiceClient) throws URISyntaxException, BlobStorageException, IOException {
         // Get a reference to a container
         // The container name must be lower case
-        BlobContainerClient container = blobServiceClient.getBlobContainerClient("blobadvancedcontainer"
+        BlobContainerClient containerClient = blobServiceClient.getBlobContainerClient("blobadvancedcontainer"
                 + UUID.randomUUID().toString().replace("-", ""));
 
         try {
             System.out.println("Create container");
             // Create the container if it does not exist
-            if (!container.exists()) {
-                container.create();
+            if (!containerClient.exists()) {
+                containerClient.create();
             }
 
             Random random = new Random();
@@ -393,15 +392,16 @@ class BlobAdvanced {
 
             // Use a sample file as a block blob
             System.out.println("Upload a sample file as a block blob");
-            BlobClient blob = container.getBlobClient("blockblob1.tmp");
+            BlobClient blob = containerClient.getBlobClient("blockblob1.tmp");
 
             System.out.println("Set blob metadata");
-            Map<String,String> metadata = blob.exists() && blob.getProperties().getMetadata() != null ? blob.getProperties().getMetadata() : new HashMap();
+            Map<String, String> metadata = blob.exists() ? blob.getProperties().getMetadata() : new HashMap();
+            metadata = metadata != null ? metadata : new HashMap();
             metadata.put("key1", "value1");
             metadata.put("foo", "bar");
 
             // Upload the block blob
-            blob.uploadFromFileWithResponse(new BlobUploadFromFileOptions(tempFile.getAbsolutePath()).setMetadata(metadata),Duration.ofSeconds(30),Context.NONE);
+            blob.uploadFromFileWithResponse(new BlobUploadFromFileOptions(tempFile.getAbsolutePath()).setMetadata(metadata), Duration.ofSeconds(30), Context.NONE);
             System.out.println("Successfully uploaded the blob");
 
             System.out.println("Get blob metadata:");
@@ -413,9 +413,9 @@ class BlobAdvanced {
                 it.remove();
             }
         } finally {
-            if (container.exists()) {
-                container.delete();
-                System.out.println(String.format("Successfully deleted the container: %s", container.getBlobContainerName()));
+            if (containerClient.exists()) {
+                containerClient.delete();
+                System.out.println(String.format("Successfully deleted the container: %s", containerClient.getBlobContainerName()));
             }
         }
     }
