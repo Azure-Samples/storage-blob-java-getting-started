@@ -119,10 +119,10 @@ public class BlobBasics {
 
             // Acquire a lease on a container so that another client cannot write to it or delete it
             System.out.println("\nAcquiring a lease on a container to prevent writes and deletes.");
-            AzureBlobStorageImpl azureBlobStorageImpl = new AzureBlobStorageBuilder().pipeline(blobServiceClient.getHttpPipeline()).url(blobServiceClient.getAccountUrl()).build();
-            azureBlobStorageImpl.containers().acquireLeaseWithRestResponseAsync(container1.getBlobContainerName(),Context.NONE);
+            BlobLeaseClient blockLeaseBlob = new BlobLeaseClientBuilder().containerClient(container1).buildClient();
+            blockLeaseBlob.acquireLease(-1);
             System.out.println(String.format("\tSuccessfully acquired a lease on container %s. Lease state: %s.", container1.getBlobContainerName(), container1.getProperties().getLeaseStatus().toString()));
-            azureBlobStorageImpl.containers().breakLeaseWithRestResponseAsync(container1.getBlobContainerName(),Context.NONE);
+            blockLeaseBlob.breakLease();
             System.out.println(String.format("\tSuccessfully broke the lease on container %s. Lease state: %s.", container1.getBlobContainerName(), container1.getProperties().getLeaseStatus().toString()));
 
             // To view the uploaded blobs in a browser, you have two options.
