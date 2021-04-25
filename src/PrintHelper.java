@@ -14,7 +14,7 @@
  */
 
 
-import com.microsoft.azure.storage.StorageException;
+import com.azure.storage.blob.models.BlobStorageException;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -53,9 +53,9 @@ public final class PrintHelper {
         StringWriter stringWriter = new StringWriter();
         PrintWriter printWriter = new PrintWriter(stringWriter);
         t.printStackTrace(printWriter);
-        if (t instanceof StorageException) {
-            if (((StorageException) t).getExtendedErrorInformation() != null) {
-                System.out.println(String.format("\nError: %s", ((StorageException) t).getExtendedErrorInformation().getErrorMessage()));
+        if (t instanceof BlobStorageException) {
+            if (((BlobStorageException) t).getServiceMessage() != null) {
+                System.out.println(String.format("\nError: %s", ((BlobStorageException) t).getServiceMessage()));
             }
         }
         System.out.println(String.format("Exception details:\n%s", stringWriter.toString()));

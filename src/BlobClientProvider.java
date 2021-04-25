@@ -1,5 +1,5 @@
-import com.microsoft.azure.storage.CloudStorageAccount;
-import com.microsoft.azure.storage.blob.CloudBlobClient;
+import com.azure.storage.blob.BlobServiceClient;
+import com.azure.storage.blob.BlobServiceClientBuilder;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -24,7 +24,7 @@ public class BlobClientProvider {
      * @throws IllegalArgumentException
      * @throws InvalidKeyException
      */
-    public static CloudBlobClient getBlobClientReference() throws RuntimeException, IOException, IllegalArgumentException, URISyntaxException, InvalidKeyException {
+    public static BlobServiceClient getBlobClientReference() throws RuntimeException, IOException, IllegalArgumentException {
 
         // Retrieve the connection string
         Properties prop = new Properties();
@@ -41,22 +41,7 @@ public class BlobClientProvider {
             throw e;
         }
 
-        CloudStorageAccount storageAccount;
-        try {
-            storageAccount = CloudStorageAccount.parse(prop.getProperty("StorageConnectionString"));
-        }
-        catch (IllegalArgumentException|URISyntaxException e) {
-            System.out.println("\nConnection string specifies an invalid URI.");
-            System.out.println("Please confirm the connection string is in the Azure connection string format.");
-            throw e;
-        }
-        catch (InvalidKeyException e) {
-            System.out.println("\nConnection string specifies an invalid key.");
-            System.out.println("Please confirm the AccountName and AccountKey in the connection string are valid.");
-            throw e;
-        }
-
-        return storageAccount.createCloudBlobClient();
+        return new BlobServiceClientBuilder().connectionString(prop.getProperty("StorageConnectionString")).buildClient();
     }
 
 }
