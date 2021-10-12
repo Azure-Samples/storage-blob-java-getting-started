@@ -30,7 +30,7 @@ public class BlobClientProvider {
             else {
                 throw new RuntimeException();
             }
-        } catch (RuntimeException|IOException ex) {
+        } catch (IOException ex) {
             System.out.println("\nFailed to load config.properties file.");
             throw ex;
         }
