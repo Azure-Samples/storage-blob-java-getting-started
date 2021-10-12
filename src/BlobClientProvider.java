@@ -24,12 +24,7 @@ public class BlobClientProvider {
         Properties prop = new Properties();
         try {
             InputStream propertyStream = BlobBasics.class.getClassLoader().getResourceAsStream("config.properties");
-            if (propertyStream != null) {
-                prop.load(propertyStream);
-            }
-            else {
-                throw new RuntimeException();
-            }
+            prop.load(propertyStream);
         } catch (IOException ex) {
             System.out.println("\nFailed to load config.properties file.");
             throw ex;
