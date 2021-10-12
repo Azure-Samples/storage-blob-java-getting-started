@@ -14,21 +14,37 @@
 // places, or events is intended or should be inferred.
 //----------------------------------------------------------------------------------
 
-import java.io.*;
-import java.net.URISyntaxException;
-import java.security.InvalidKeyException;
-import java.time.Duration;
-import java.util.*;
-
-import com.azure.core.util.Context;
 import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceClient;
-import com.azure.storage.blob.implementation.AzureBlobStorageBuilder;
-import com.azure.storage.blob.implementation.AzureBlobStorageImpl;
-import com.azure.storage.blob.models.*;
+import com.azure.storage.blob.models.BlobErrorCode;
+import com.azure.storage.blob.models.Block;
+import com.azure.storage.blob.models.BlockListType;
+import com.azure.storage.blob.models.BlobRange;
+import com.azure.storage.blob.models.BlobStorageException;
+import com.azure.storage.blob.models.CopyStatusType;
+import com.azure.storage.blob.models.DeleteSnapshotsOptionType;
+import com.azure.storage.blob.models.ListBlobContainersOptions;
+import com.azure.storage.blob.models.PageRange;
+import com.azure.storage.blob.models.PublicAccessType;
 import com.azure.storage.blob.options.BlobBeginCopyOptions;
-import com.azure.storage.blob.specialized.*;
+import com.azure.storage.blob.specialized.AppendBlobClient;
+import com.azure.storage.blob.specialized.BlobClientBase;
+import com.azure.storage.blob.specialized.BlobLeaseClient;
+import com.azure.storage.blob.specialized.BlobLeaseClientBuilder;
+import com.azure.storage.blob.specialized.BlockBlobClient;
+import com.azure.storage.blob.specialized.PageBlobClient;
+
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Random;
 
 /**
  * This sample illustrates basic usage of the various Blob Primitives provided
@@ -39,10 +55,8 @@ public class BlobBasics {
 
     /**
      * Azure Storage Blob Sample
-     *
-     * @throws Exception
      */
-    public static void runSamples() throws Exception {
+    public static void runSamples() {
 
         System.out.println("Azure Storage Blob basic sample - Starting.");
 
@@ -52,7 +66,7 @@ public class BlobBasics {
 
         try {
             // Create a blob client for interacting with the blob service
-            blobServiceClient = BlobClientProvider.getBlobClientReference();
+            blobServiceClient = BlobClientProvider.getBlobServiceClient();
 
             // Create new containers with randomized names
             System.out.println("\nCreate container for the sample demonstration");
@@ -63,53 +77,19 @@ public class BlobBasics {
 
             // Demonstrate block blobs
             System.out.println("\nBasic block blob operations\n");
-            try {
-                basicBlockBlobOperations(container1);
-            }
-            catch (BlobStorageException s) {
-                if (s.getErrorCode().equals("BlobTypeNotSupported")) {
-                    System.out.println(String.format("\t\tError: %s", s.getMessage()));
-                }
-                else {
-                    throw s;
-                }
-            }
+            basicBlockBlobOperations(container1);
 
             // Demonstrate append blobs
             System.out.println("\nBasic append blob operations\n");
-            try {
-                basicAppendBlobOperations(container1);
-            }
-            catch (BlobStorageException s) {
-                if (s.getErrorCode().equals("BlobTypeNotSupported")) {
-                    System.out.println(String.format("\t\tError: %s", s.getMessage()));
-                }
-                else if (s.getErrorCode().equals("FeatureNotSupportedByEmulator")) {
-                    System.out.println("\t\tError: The append blob feature is currently not supported by the Storage Emulator.");
-                    System.out.println("\t\tPlease run the sample against your Azure Storage account by updating the config.properties file.");
-                }
-                else {
-                    throw s;
-                }
-            }
+            basicAppendBlobOperations(container1);
 
             // Demonstrate page blobs
             System.out.println("\nBasic page blob operations\n");
-            try {
-                basicPageBlobOperations(container2);
-            }
-            catch (BlobStorageException s) {
-                if (s.getErrorCode().equals("BlobTypeNotSupported")) {
-                    System.out.println(String.format("\t\tError: %s", s.getMessage()));
-                }
-                else {
-                    throw s;
-                }
-            }
+            basicPageBlobOperations(container2);
 
             // Enumerate all containers starting with the prefix "blobbasics-" and list all blobs
             System.out.println("\nEnumerate all containers and starting with the prefix \"blobbasics-\" list all blobs");
-            blobServiceClient.listBlobContainers(new ListBlobContainersOptions().setPrefix("blobbasics-"), (Duration)null).forEach(blobContainerItem -> {
+            blobServiceClient.listBlobContainers(new ListBlobContainersOptions().setPrefix("blobbasics-"), (Duration) null).forEach(blobContainerItem -> {
                 System.out.println(String.format("\tContainer: %s", blobContainerItem.getName()));
                 BlobContainerClient containerItem = blobServiceClient.getBlobContainerClient(blobContainerItem.getName());
                 containerItem.listBlobs().forEach(blobItem -> {
@@ -130,23 +110,21 @@ public class BlobBasics {
             //     See the documentation links at the top for more information on SAS.
             //   - The second approach is to set permissions to allow public access to blobs in this container.
             //     Uncomment the the lines of code below to use this approach.
-            container1.setAccessPolicy(PublicAccessType.CONTAINER,container1.getAccessPolicy().getIdentifiers());
-            container2.setAccessPolicy(PublicAccessType.CONTAINER,container2.getAccessPolicy().getIdentifiers());
+            container1.setAccessPolicy(PublicAccessType.CONTAINER, container1.getAccessPolicy().getIdentifiers());
+            container2.setAccessPolicy(PublicAccessType.CONTAINER, container2.getAccessPolicy().getIdentifiers());
 
-        }
-        catch (Throwable t) {
-            PrintHelper.printException(t);
-        }
-        finally {
+        } catch (Exception ex) {
+            PrintHelper.printException(ex);
+        } finally {
             // Delete the containers (If you do not want to delete the container comment out the block of code below)
             System.out.print("\nDelete the containers.");
 
-            if (container1 != null && container1.exists() == true) {
+            if (container1 != null) {
                 container1.delete();
                 System.out.println(String.format("\tSuccessfully deleted the container: %s", container1.getBlobContainerName()));
             }
 
-            if (container2 != null && container2.exists() == true) {
+            if (container2 != null) {
                 container2.delete();
                 System.out.println(String.format("\tSuccessfully deleted the container: %s", container2.getBlobContainerName()));
             }
@@ -159,45 +137,26 @@ public class BlobBasics {
      * Creates and returns a container for the sample application to use.
      *
      * @param blobServiceClient CloudBlobClient object
-     * @param containerName Name of the container to create
+     * @param containerName     Name of the container to create
      * @return The newly created CloudBlobContainer object
-     *
-     * @throws BlobStorageException
-     * @throws RuntimeException
-     * @throws IOException
-     * @throws URISyntaxException
-     * @throws IllegalArgumentException
-     * @throws InvalidKeyException
-     * @throws IllegalStateException
      */
-    private static BlobContainerClient createContainer(BlobServiceClient blobServiceClient, String containerName) throws BlobStorageException, RuntimeException, IOException, InvalidKeyException, IllegalArgumentException, URISyntaxException, IllegalStateException {
+    private static BlobContainerClient createContainer(BlobServiceClient blobServiceClient, String containerName) {
 
         // Create a new container
-        if ( blobServiceClient.getBlobContainerClient(containerName).exists() ) {
+        if (blobServiceClient.getBlobContainerClient(containerName).exists()) {
             throw new IllegalStateException(String.format("Container with name \"%s\" already exists.", containerName));
         }
-        try {
-            return blobServiceClient.createBlobContainer(containerName);
-        } catch (BlobStorageException s) {
-            if (s.getCause() instanceof java.net.ConnectException) {
-                System.out.println("Caught connection exception from the client. If running with the default configuration please make sure you have started the storage emulator.");
-            }
-            throw s;
-        }
+        return blobServiceClient.createBlobContainer(containerName);
     }
 
     /**
      * Demonstrates the basic operations with a block blob.
      *
      * @param container The CloudBlobContainer object to work with
-     *
-     * @throws Throwable
-     * @throws BlobStorageException
      * @throws IOException
      * @throws IllegalArgumentException
-     * @throws URISyntaxException
      */
-    private static void basicBlockBlobOperations(BlobContainerClient container) throws Throwable, BlobStorageException, IOException, IllegalArgumentException, URISyntaxException {
+    private static void basicBlockBlobOperations(BlobContainerClient container) throws IOException, InterruptedException {
 
         // Create sample files for use
         Random random = new Random();
@@ -223,7 +182,7 @@ public class BlobBasics {
 
         // Modify the blob by overwriting it
         System.out.println("\n\tOverwrite the blob by uploading the second sample file.");
-        blobClient.uploadFromFile(tempFile2.getAbsolutePath(),true);
+        blobClient.uploadFromFile(tempFile2.getAbsolutePath(), true);
         System.out.println("\t\tSuccessfully overwrote the blob.");
 
         // Acquire a lease on the blob so that another client cannot write to it or delete it
@@ -253,32 +212,30 @@ public class BlobBasics {
 
         // Upload a sample file as a block blob
         System.out.println("\n\tUpload the sample file as a block blob.");
-        BlockBlobClient blockBlobClient2 = container.getBlobClient("blockblob3.tmp").getBlockBlobClient();
-//        CloudBlockBlob blockBlob3 = container.getBlockBlobReference("blockblob3.tmp");
-        blockBlobClient2.upload(new FileInputStream(tempFile4),tempFile4.length());
+        BlobClient blobClient2 = container.getBlobClient("blockblob3.tmp");
+        blobClient2.uploadFromFile(tempFile4.getAbsolutePath());
         System.out.println("\t\tSuccessfully uploaded the blob.");
 
         // Copy the blob
-        System.out.println(String.format("\n\tCopying blob \"%s\".", blockBlobClient2.getBlobUrl()));
-        BlockBlobClient blockBlob3Copy = container.getBlobClient(blockBlobClient2.getBlobName() + ".copy").getBlockBlobClient();
-        blockBlob3Copy.beginCopy(new BlobBeginCopyOptions(blockBlobClient2.getBlobUrl()));
+        System.out.println(String.format("\n\tCopying blob \"%s\".", blobClient2.getBlobUrl()));
+        BlockBlobClient blockBlob3Copy = container.getBlobClient(blobClient2.getBlobName() + ".copy").getBlockBlobClient();
+        blockBlob3Copy.beginCopy(new BlobBeginCopyOptions(blobClient2.getBlobUrl()));
         waitForCopyToComplete(blockBlob3Copy);
         System.out.println("\t\tSuccessfully copied the blob.");
 
         // Abort copying the blob
-        System.out.println(String.format("\n\tAborting while copying blob \"%s\".", blockBlobClient2.getBlobUrl()));
-        BlockBlobClient blockBlob3CopyAborted = container.getBlobClient(blockBlobClient2.getBlobName() + ".copyaborted").getBlockBlobClient();
+        System.out.println(String.format("\n\tAborting while copying blob \"%s\".", blobClient2.getBlobUrl()));
+        BlockBlobClient blockBlob3CopyAborted = container.getBlobClient(blobClient2.getBlobName() + ".copyaborted").getBlockBlobClient();
         boolean copyAborted = true;
-        String copyId = blockBlob3CopyAborted.beginCopy(new BlobBeginCopyOptions(blockBlobClient2.getBlobUrl())).poll().getValue().getCopyId();
+        String copyId = blockBlob3CopyAborted.beginCopy(new BlobBeginCopyOptions(blobClient2.getBlobUrl())).poll().getValue().getCopyId();
         try {
             blockBlob3CopyAborted.abortCopyFromUrl(copyId);
-        }
-        catch (BlobStorageException ex) {
-            if (ex.getErrorCode().equals("NoPendingCopyOperation")) {
-                copyAborted = false;
-            } else {
+        } catch (Exception ex) {
+            if (!(ex instanceof BlobStorageException)
+                    || !BlobErrorCode.NO_PENDING_COPY_OPERATION.equals(((BlobStorageException) ex).getErrorCode())) {
                 throw ex;
             }
+            copyAborted = false;
         }
         if (copyAborted == true) {
             System.out.println("\t\tSuccessfully aborted copying the blob.");
@@ -317,13 +274,9 @@ public class BlobBasics {
      * Demonstrates the basic operations with a page blob.
      *
      * @param container The CloudBlobContainer object to work with
-     *
-     * @throws BlobStorageException
      * @throws IOException
-     * @throws IllegalArgumentException
-     * @throws URISyntaxException
      */
-    private static void basicPageBlobOperations(BlobContainerClient container) throws BlobStorageException, IOException, IllegalArgumentException, URISyntaxException {
+    private static void basicPageBlobOperations(BlobContainerClient container) throws IOException {
 
         // Create sample files for use. We use a file whose size is aligned to 512 bytes since page blobs are expected to be aligned to 512 byte pages.
         System.out.println("\tCreating sample file 128KB in size (aligned to 512 bytes) for upload demonstration.");
@@ -333,7 +286,7 @@ public class BlobBasics {
         // Upload the sample file sparsely as a page blob (Only upload certain ranges of the file)
         System.out.println("\n\tUpload the sample file sparsely as a page blob.");
         System.out.println("\t\tCreating an empty page blob of the same size as the sample file.");
-        PageBlobClient pageBlob = new SpecializedBlobClientBuilder().blobClient(container.getBlobClient("pageblob.tmp")).buildPageBlobClient();
+        PageBlobClient pageBlob = container.getBlobClient("pageblob.tmp").getPageBlobClient();
         pageBlob.create(tempFile.length()); // This will throw an IllegalArgumentException if the size if not aligned to 512 bytes.
 
         // Upload selective pages to the blob
@@ -342,14 +295,10 @@ public class BlobBasics {
         try {
             tempFileInputStream = new FileInputStream(tempFile);
             System.out.println("\t\t\tUploading range start: 0, length: 1024.");
-            pageBlob.uploadPages(new PageRange().setStart(0).setEnd(1024),tempFileInputStream);
+            pageBlob.uploadPages(new PageRange().setStart(0).setEnd(1024), tempFileInputStream);
             System.out.println("\t\t\tUploading range start: 4096, length: 1536.");
             pageBlob.uploadPages(new PageRange().setStart(4096).setEnd(4096 + 1536), tempFileInputStream);
-        }
-        catch (Throwable t) {
-            throw t;
-        }
-        finally {
+        } finally {
             if (tempFileInputStream != null) {
                 tempFileInputStream.close();
             }
@@ -368,14 +317,10 @@ public class BlobBasics {
             tempFileInputStream = new FileInputStream(tempFile);
             System.out.println("\t\t\tUploading range start: 8192, length: 4096.");
             tempFileInputStream.getChannel().position(8192);
-            pageBlob.uploadPages( new PageRange().setStart(8192).setEnd(8192 + 4096), tempFileInputStream);
+            pageBlob.uploadPages(new PageRange().setStart(8192).setEnd(8192 + 4096), tempFileInputStream);
             System.out.println("\t\t\tClearing range start: 4608, length: 512.");
             pageBlob.clearPages(new PageRange().setStart(4608).setEnd(4608 + 512));
-        }
-        catch (Throwable t) {
-            throw t;
-        }
-        finally {
+        } finally {
             if (tempFileInputStream != null) {
                 tempFileInputStream.close();
             }
@@ -390,7 +335,7 @@ public class BlobBasics {
 
         // Query page range diff between snapshots
         System.out.println("\n\tQuery page range diff between the snapshot and the current state.");
-        for (PageRange pageRange : pageBlob.getPageRangesDiff(new BlobRange(0),pageBlobSnapshot.getSnapshotId()).getPageRange()) {
+        for (PageRange pageRange : pageBlob.getPageRangesDiff(new BlobRange(0), pageBlobSnapshot.getSnapshotId()).getPageRange()) {
             System.out.println(String.format("\t\tRange start offset: %d, end offset: %d", pageRange.getStart(), pageRange.getEnd()));
         }
 
@@ -414,13 +359,9 @@ public class BlobBasics {
      * Demonstrates the basic operations with a append blob.
      *
      * @param container The CloudBlobContainer object to work with
-     *
-     * @throws BlobStorageException
      * @throws IOException
-     * @throws IllegalArgumentException
-     * @throws FileNotFoundException
      */
-    private static void basicAppendBlobOperations(BlobContainerClient container) throws BlobStorageException, IOException, IllegalArgumentException, FileNotFoundException {
+    private static void basicAppendBlobOperations(BlobContainerClient container) throws IOException {
 
         // Create sample files for use
         Random random = new Random();
@@ -432,12 +373,22 @@ public class BlobBasics {
 
         // Create an append blob and append data to it from the sample file
         System.out.println("\n\tCreate an empty append blob and append data to it from the sample files.");
-        AppendBlobClient appendBlob = new SpecializedBlobClientBuilder().blobClient(container.getBlobClient("appendblob.tmp")).buildAppendBlobClient(); ;
+        AppendBlobClient appendBlob = container.getBlobClient("appendblob.tmp").getAppendBlobClient();
+
         appendBlob.create(true);
-        File tempfile = new File(tempFile1.getAbsolutePath());
-        appendBlob.appendBlock(new FileInputStream(tempfile),tempfile.length());
-        tempfile = new File(tempFile2.getAbsolutePath());
-        appendBlob.appendBlock(new FileInputStream(tempfile),tempfile.length());
+        FileChannel fileChannel = FileChannel.open(tempFile1.toPath());
+        ByteBuffer fileByteBuffer = ByteBuffer.allocate(Long.valueOf(fileChannel.size()).intValue());
+        fileChannel.read(fileByteBuffer);
+        fileChannel.close();
+        appendBlob.getBlobOutputStream().write(fileByteBuffer.array());
+        fileByteBuffer.clear();
+
+        fileChannel = FileChannel.open(tempFile2.toPath());
+        fileByteBuffer = ByteBuffer.allocate(Long.valueOf(fileChannel.size()).intValue());
+        fileChannel.read(fileByteBuffer);
+        fileChannel.close();
+        appendBlob.getBlobOutputStream().write(fileByteBuffer.array());
+        fileByteBuffer.clear();
         System.out.println("\t\tSuccessfully created the append blob and appended data to it.");
 
         // Write random data blocks to the end of the append blob
@@ -462,15 +413,14 @@ public class BlobBasics {
      * Creates and returns a temporary local file for use by the sample.
      *
      * @param blockBlob CloudBlockBlob object.
-     * @param filePath The path to the file to be uploaded.
-     *
-     * @throws Throwable
+     * @param filePath  The path to the file to be uploaded.
+     * @throws IOException
      */
-    private static void uploadFileBlocksAsBlockBlob(BlockBlobClient blockBlob, String filePath) throws Throwable {
+    private static void uploadFileBlocksAsBlockBlob(BlockBlobClient blockBlob, String filePath) throws IOException {
 
         FileInputStream fileInputStream = null;
         ByteArrayInputStream byteInputStream = null;
-        byte [] bytes = null;
+        byte[] bytes = null;
         try {
             // Open the file
             fileInputStream = new FileInputStream(filePath);
@@ -485,7 +435,7 @@ public class BlobBasics {
                 byteInputStream = new ByteArrayInputStream(bytes);
                 blockId = String.format("%05d", blockNum);
                 blockIdEncoded = Base64.getEncoder().encodeToString(blockId.getBytes());
-                blockBlob.upload(byteInputStream,32 * 1024, true);
+                blockBlob.stageBlock(blockIdEncoded, byteInputStream, 32 * 1024);
                 blockList.add(blockIdEncoded);
                 blockNum++;
                 System.out.println(bytes.length);
@@ -495,21 +445,17 @@ public class BlobBasics {
             bytes = new byte[fileInputStream.available()];
             fileInputStream.read(bytes);
             byteInputStream = new ByteArrayInputStream(bytes);
-            blockBlob.upload(byteInputStream,bytes.length,true);
+            blockBlob.upload(byteInputStream, bytes.length, true);
             blockList.add(blockIdEncoded);
 
             // Commit the blocks
             blockBlob.commitBlockList(blockList);
-        }
-        catch (Throwable t) {
-            throw t;
-        }
-        finally {
+        } finally {
             // Close the file output stream writer
             if (fileInputStream != null) {
                 fileInputStream.close();
             }
-            if ( byteInputStream != null ) {
+            if (byteInputStream != null) {
                 byteInputStream.close();
             }
         }
@@ -519,21 +465,14 @@ public class BlobBasics {
      * Wait until the copy complete.
      *
      * @param blob Target of the copy operation
-     *
      * @throws InterruptedException
-     * @throws BlobStorageException
      */
-    private static void waitForCopyToComplete(BlockBlobClient blob) throws InterruptedException, BlobStorageException {
+    private static void waitForCopyToComplete(BlockBlobClient blob) throws InterruptedException {
         CopyStatusType copyStatus = CopyStatusType.PENDING;
         while (copyStatus == CopyStatusType.PENDING) {
             Thread.sleep(1000);
-//            blob.downloadAttributes();
-            copyStatus = blob.getProperties().getCopyStatus();;
+            copyStatus = blob.getProperties().getCopyStatus();
         }
     }
-
-
-
-
 
 }

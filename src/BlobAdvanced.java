@@ -17,18 +17,34 @@ import com.azure.core.util.Context;
 import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceClient;
-import com.azure.storage.blob.models.*;
+import com.azure.storage.blob.models.BlobAccessPolicy;
+import com.azure.storage.blob.models.BlobAnalyticsLogging;
+import com.azure.storage.blob.models.BlobContainerItem;
+import com.azure.storage.blob.models.BlobContainerProperties;
+import com.azure.storage.blob.models.BlobCorsRule;
+import com.azure.storage.blob.models.BlobErrorCode;
+import com.azure.storage.blob.models.BlobHttpHeaders;
+import com.azure.storage.blob.models.BlobMetrics;
+import com.azure.storage.blob.models.BlobProperties;
+import com.azure.storage.blob.models.BlobRetentionPolicy;
+import com.azure.storage.blob.models.BlobServiceProperties;
+import com.azure.storage.blob.models.BlobServiceStatistics;
+import com.azure.storage.blob.models.BlobStorageException;
+import com.azure.storage.blob.models.ListBlobContainersOptions;
+import com.azure.storage.blob.models.PublicAccessType;
 import com.azure.storage.blob.options.BlobUploadFromFileOptions;
 import com.azure.storage.common.implementation.Constants;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.URISyntaxException;
-import java.security.InvalidKeyException;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Random;
+import java.util.UUID;
 
 /**
  * This sample illustrates advanced usage of the Azure blob storage service.
@@ -37,19 +53,16 @@ class BlobAdvanced {
 
     /**
      * Executes the samples.
-     *
-     * @throws URISyntaxException  Uri has invalid syntax
-     * @throws InvalidKeyException Invalid key
      */
-    void runSamples() throws InvalidKeyException, URISyntaxException, IOException {
+    void runSamples() {
         System.out.println();
         System.out.println();
         PrintHelper.printSampleStartInfo("Blob Advanced");
 
-        // Create a blob service client
-        BlobServiceClient blobServiceClient = BlobClientProvider.getBlobClientReference();
-
         try {
+            // Create a blob service client
+            BlobServiceClient blobServiceClient = BlobClientProvider.getBlobServiceClient();
+
             System.out.println("List containers sample");
             listContainers(blobServiceClient);
             System.out.println();
@@ -86,8 +99,8 @@ class BlobAdvanced {
 //            System.out.println("Service stats sample");
 //            serviceStats(blobClient);
 //            System.out.println();
-        } catch (Throwable t) {
-            PrintHelper.printException(t);
+        } catch (Exception ex) {
+            PrintHelper.printException(ex);
         }
 
         PrintHelper.printSampleCompleteInfo("Blob Advanced");
@@ -98,7 +111,7 @@ class BlobAdvanced {
      *
      * @param blobServiceClient Azure Storage Blob Service
      */
-    private void listContainers(BlobServiceClient blobServiceClient) throws URISyntaxException, BlobStorageException {
+    private void listContainers(BlobServiceClient blobServiceClient) {
         ArrayList<String> containerList = new ArrayList<>();
         try {
             System.out.println("Create containers");
@@ -115,7 +128,14 @@ class BlobAdvanced {
         } finally {
             System.out.println("Delete containers");
             for (final String containerName : containerList) {
-                blobServiceClient.getBlobContainerClient(containerName).delete();
+                try {
+                    blobServiceClient.getBlobContainerClient(containerName).delete();
+                } catch (Exception ex) {
+                    if (!(ex instanceof BlobStorageException)
+                            || !BlobErrorCode.CONTAINER_NOT_FOUND.equals(((BlobStorageException)ex).getErrorCode())) {
+                        throw ex;
+                    }
+                }
             }
         }
     }
@@ -125,7 +145,7 @@ class BlobAdvanced {
      *
      * @param blobServiceClient Azure Storage Blob Service
      */
-    private void serviceProperties(BlobServiceClient blobServiceClient) throws BlobStorageException {
+    private void serviceProperties(BlobServiceClient blobServiceClient) {
 
         System.out.println("Get service properties");
         BlobServiceProperties originalProps = blobServiceClient.getProperties();
@@ -140,12 +160,24 @@ class BlobAdvanced {
 
             props.setDeleteRetentionPolicy(new BlobRetentionPolicy().setEnabled(true).setDays(3));
 
-            final BlobAnalyticsLogging logging = props.getLogging() != null ? props.getLogging() : new BlobAnalyticsLogging();
-            props.setLogging(logging.setDelete(true).setRead(true).setWrite(true).setVersion("1.0").setRetentionPolicy(new BlobRetentionPolicy().setEnabled(true).setDays(3)));
-            final BlobMetrics hours = props.getHourMetrics() != null ? props.getHourMetrics() : new BlobMetrics();
-            props.setHourMetrics(hours.setIncludeApis(true).setRetentionPolicy(new BlobRetentionPolicy().setDays(1)).setVersion("1.0").setRetentionPolicy(new BlobRetentionPolicy().setEnabled(true).setDays(3)));
-            final BlobMetrics minutes = props.getMinuteMetrics() != null ? props.getMinuteMetrics() : new BlobMetrics();
-            props.setMinuteMetrics(minutes.setIncludeApis(false).setRetentionPolicy(new BlobRetentionPolicy().setDays(1)).setVersion("1.0").setRetentionPolicy(new BlobRetentionPolicy().setEnabled(true).setDays(3)));
+            props.setLogging(new BlobAnalyticsLogging()
+                    .setDelete(true)
+                    .setRead(true)
+                    .setWrite(true)
+                    .setVersion("1.0")
+                    .setRetentionPolicy(new BlobRetentionPolicy().setEnabled(true).setDays(3)));
+
+            props.setHourMetrics(new BlobMetrics()
+                    .setIncludeApis(true)
+                    .setRetentionPolicy(new BlobRetentionPolicy().setDays(1))
+                    .setVersion("1.0")
+                    .setRetentionPolicy(new BlobRetentionPolicy().setEnabled(true).setDays(3)));
+
+            props.setMinuteMetrics(new BlobMetrics()
+                    .setIncludeApis(false)
+                    .setRetentionPolicy(new BlobRetentionPolicy().setDays(1))
+                    .setVersion("1.0")
+                    .setRetentionPolicy(new BlobRetentionPolicy().setEnabled(true).setDays(3)));
 
             blobServiceClient.setProperties(props);
 
@@ -171,7 +203,7 @@ class BlobAdvanced {
             System.out.println();
         } finally {
             // Revert back to original service properties
-            blobServiceClient.setPropertiesWithResponse(originalProps, Duration.ofSeconds(60), Context.NONE);
+            blobServiceClient.setProperties(originalProps);
         }
     }
 
@@ -180,7 +212,7 @@ class BlobAdvanced {
      *
      * @param blobServiceClient Azure Storage Blob Service
      */
-    private void corsRules(BlobServiceClient blobServiceClient) throws BlobStorageException {
+    private void corsRules(BlobServiceClient blobServiceClient) {
 
         BlobServiceProperties originalProperties = blobServiceClient.getProperties();
 
@@ -206,7 +238,7 @@ class BlobAdvanced {
      *
      * @param blobServiceClient Azure Storage Blob Service
      */
-    private void containerProperties(BlobServiceClient blobServiceClient) throws URISyntaxException, BlobStorageException {
+    private void containerProperties(BlobServiceClient blobServiceClient) {
         // Get a reference to a container
         // The container name must be lower case
         BlobContainerClient containerClient = blobServiceClient.getBlobContainerClient("blobadvancedcontainer"
@@ -214,8 +246,13 @@ class BlobAdvanced {
         try {
             System.out.println("Create container");
             // Create the container if it does not exist
-            if (!containerClient.exists()) {
+            try {
                 containerClient.create();
+            } catch (Exception ex) {
+                if (!(ex instanceof BlobStorageException)
+                        || !BlobErrorCode.CONTAINER_ALREADY_EXISTS.equals(((BlobStorageException)ex).getErrorCode())) {
+                    throw ex;
+                }
             }
 
             System.out.println("Get container properties");
@@ -225,10 +262,8 @@ class BlobAdvanced {
             System.out.printf("Lease state: %s%n", properties.getLeaseState());
             System.out.printf("Lease status: %s%n", properties.getLeaseStatus());
         } finally {
-            if (containerClient.exists()) {
-                containerClient.delete();
-                System.out.println(String.format("Successfully deleted the container: %s", containerClient.getBlobContainerName()));
-            }
+            containerClient.delete();
+            System.out.println(String.format("Successfully deleted the container: %s", containerClient.getBlobContainerName()));
         }
     }
 
@@ -237,7 +272,7 @@ class BlobAdvanced {
      *
      * @param blobServiceClient Azure Storage Blob Service
      */
-    private void containerMetadata(BlobServiceClient blobServiceClient) throws URISyntaxException, BlobStorageException {
+    private void containerMetadata(BlobServiceClient blobServiceClient) {
         // Get a reference to a container
         // The container name must be lower case
         String containerName = "blobadvancedcontainer" + UUID.randomUUID().toString().replace("-", "");
@@ -245,8 +280,13 @@ class BlobAdvanced {
         try {
             System.out.println("Create container");
             // Create the container if it does not exist
-            if (!containerClient.exists()) {
+            try {
                 containerClient.create();
+            } catch (Exception ex) {
+                if (!(ex instanceof BlobStorageException)
+                        || !BlobErrorCode.CONTAINER_ALREADY_EXISTS.equals(((BlobStorageException)ex).getErrorCode())) {
+                    throw ex;
+                }
             }
             System.out.println("Set container metadata");
             Map<String, String> metadataMap = containerClient.getProperties().getMetadata();
@@ -255,16 +295,12 @@ class BlobAdvanced {
             metadataMap.put("foo", "bar");
             containerClient.setMetadata(metadataMap);
             System.out.println("Get container metadata:");
-            Map<String, String> metadata = containerClient.getProperties().getMetadata();
-            metadata.entrySet().forEach(pair -> {
+            containerClient.getProperties().getMetadata().entrySet().forEach(pair -> {
                 System.out.printf(" %s = %s%n", pair.getKey(), pair.getValue());
             });
-            metadata.clear();
         } finally {
-            if (containerClient.exists()) {
-                containerClient.delete();
-                System.out.println(String.format("Successfully deleted the container: %s", containerClient.getBlobContainerName()));
-            }
+            containerClient.delete();
+            System.out.println(String.format("Successfully deleted the container: %s", containerClient.getBlobContainerName()));
         }
     }
 
@@ -273,7 +309,7 @@ class BlobAdvanced {
      *
      * @param blobServiceClient Azure Storage Blob Service
      */
-    private void containerAcl(BlobServiceClient blobServiceClient) throws BlobStorageException, URISyntaxException, InterruptedException {
+    private void containerAcl(BlobServiceClient blobServiceClient) throws InterruptedException {
         // Get a reference to a container
         // The container name must be lower case
         String containerName = "blobadvancedcontainer" + UUID.randomUUID().toString().replace("-", "");
@@ -282,8 +318,13 @@ class BlobAdvanced {
         try {
             System.out.println("Create container");
             // Create the container if it does not exist
-            if (!containerClient.exists()) {
+            try {
                 containerClient.create();
+            } catch (Exception ex) {
+                if (!(ex instanceof BlobStorageException)
+                        || !BlobErrorCode.CONTAINER_ALREADY_EXISTS.equals(((BlobStorageException)ex).getErrorCode())) {
+                    throw ex;
+                }
             }
 
             System.out.println("Set container permissions");
@@ -310,10 +351,8 @@ class BlobAdvanced {
             System.out.println("Clear container permissions");
             containerClient.setAccessPolicy(PublicAccessType.CONTAINER, containerClient.getAccessPolicy().getIdentifiers());
         } finally {
-            if (containerClient.exists()) {
-                containerClient.delete();
-                System.out.println(String.format("Successfully deleted the container: %s", containerClient.getBlobContainerName()));
-            }
+            containerClient.delete();
+            System.out.println(String.format("Successfully deleted the container: %s", containerClient.getBlobContainerName()));
         }
     }
 
@@ -322,7 +361,7 @@ class BlobAdvanced {
      *
      * @param blobServiceClient Azure Storage Blob Service
      */
-    private void blobProperties(BlobServiceClient blobServiceClient) throws BlobStorageException, URISyntaxException, IOException {
+    private void blobProperties(BlobServiceClient blobServiceClient) throws IOException {
         // Get a reference to a container
         // The container name must be lower case
         String containerName = "blobadvancedcontainer" + UUID.randomUUID().toString().replace("-", "");
@@ -331,8 +370,13 @@ class BlobAdvanced {
         try {
             System.out.println("Create container");
             // Create the container if it does not exist
-            if (!containerClient.exists()) {
+            try {
                 containerClient.create();
+            } catch (Exception ex) {
+                if (!(ex instanceof BlobStorageException)
+                        || !BlobErrorCode.CONTAINER_ALREADY_EXISTS.equals(((BlobStorageException)ex).getErrorCode())) {
+                    throw ex;
+                }
             }
 
             Random random = new Random();
@@ -361,10 +405,8 @@ class BlobAdvanced {
             System.out.printf("Lease state: %s%n", properties.getLeaseState());
             System.out.printf("Lease status: %s%n", properties.getLeaseStatus());
         } finally {
-            if (containerClient.exists()) {
-                containerClient.delete();
-                System.out.println(String.format("Successfully deleted the container: %s", containerClient.getBlobContainerName()));
-            }
+            containerClient.delete();
+            System.out.println(String.format("Successfully deleted the container: %s", containerClient.getBlobContainerName()));
         }
     }
 
@@ -373,7 +415,7 @@ class BlobAdvanced {
      *
      * @param blobServiceClient Azure Storage Blob Service
      */
-    private void blobMetadata(BlobServiceClient blobServiceClient) throws URISyntaxException, BlobStorageException, IOException {
+    private void blobMetadata(BlobServiceClient blobServiceClient) throws IOException {
         // Get a reference to a container
         // The container name must be lower case
         BlobContainerClient containerClient = blobServiceClient.getBlobContainerClient("blobadvancedcontainer"
@@ -382,8 +424,13 @@ class BlobAdvanced {
         try {
             System.out.println("Create container");
             // Create the container if it does not exist
-            if (!containerClient.exists()) {
+            try {
                 containerClient.create();
+            } catch (Exception ex) {
+                if (!(ex instanceof BlobStorageException)
+                        || !BlobErrorCode.CONTAINER_ALREADY_EXISTS.equals(((BlobStorageException)ex).getErrorCode())) {
+                    throw ex;
+                }
             }
 
             Random random = new Random();
@@ -405,18 +452,11 @@ class BlobAdvanced {
             System.out.println("Successfully uploaded the blob");
 
             System.out.println("Get blob metadata:");
-            metadata = (HashMap) blob.getProperties().getMetadata();
-            Iterator it = metadata.entrySet().iterator();
-            while (it.hasNext()) {
-                Map.Entry pair = (Map.Entry) it.next();
-                System.out.printf(" %s = %s%n", pair.getKey(), pair.getValue());
-                it.remove();
-            }
+            blob.getProperties().getMetadata().entrySet()
+                    .forEach(pair -> System.out.printf(" %s = %s%n", pair.getKey(), pair.getValue()));
         } finally {
-            if (containerClient.exists()) {
-                containerClient.delete();
-                System.out.println(String.format("Successfully deleted the container: %s", containerClient.getBlobContainerName()));
-            }
+            containerClient.delete();
+            System.out.println(String.format("Successfully deleted the container: %s", containerClient.getBlobContainerName()));
         }
     }
 
@@ -427,7 +467,7 @@ class BlobAdvanced {
      *
      * @param blobServiceClient Azure Storage Blob Service
      */
-    private void serviceStats(BlobServiceClient blobServiceClient) throws BlobStorageException {
+    private void serviceStats(BlobServiceClient blobServiceClient) {
         // Get service stats
         System.out.println("Service Stats:");
         BlobServiceStatistics stats = blobServiceClient.getStatistics();

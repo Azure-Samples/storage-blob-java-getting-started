@@ -3,8 +3,6 @@ import com.azure.storage.blob.BlobServiceClientBuilder;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URISyntaxException;
-import java.security.InvalidKeyException;
 import java.util.Properties;
 
 /**
@@ -18,13 +16,9 @@ public class BlobClientProvider {
      *
      * @return The newly created CloudBlobClient object
      *
-     * @throws RuntimeException
      * @throws IOException
-     * @throws URISyntaxException
-     * @throws IllegalArgumentException
-     * @throws InvalidKeyException
      */
-    public static BlobServiceClient getBlobClientReference() throws RuntimeException, IOException, IllegalArgumentException {
+    public static BlobServiceClient getBlobServiceClient() throws IOException {
 
         // Retrieve the connection string
         Properties prop = new Properties();
@@ -36,9 +30,9 @@ public class BlobClientProvider {
             else {
                 throw new RuntimeException();
             }
-        } catch (RuntimeException|IOException e) {
+        } catch (RuntimeException|IOException ex) {
             System.out.println("\nFailed to load config.properties file.");
-            throw e;
+            throw ex;
         }
 
         return new BlobServiceClientBuilder().connectionString(prop.getProperty("StorageConnectionString")).buildClient();

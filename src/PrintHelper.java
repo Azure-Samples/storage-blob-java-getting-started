@@ -46,16 +46,16 @@ public final class PrintHelper {
     /**
      * Print the exception stack trace
      *
-     * @param t Exception to be printed
+     * @param ex Exception to be printed
      */
-    public static void printException(Throwable t) {
+    public static void printException(Exception ex) {
 
         StringWriter stringWriter = new StringWriter();
         PrintWriter printWriter = new PrintWriter(stringWriter);
-        t.printStackTrace(printWriter);
-        if (t instanceof BlobStorageException) {
-            if (((BlobStorageException) t).getServiceMessage() != null) {
-                System.out.println(String.format("\nError: %s", ((BlobStorageException) t).getServiceMessage()));
+        ex.printStackTrace(printWriter);
+        if (ex instanceof BlobStorageException) {
+            if (((BlobStorageException) ex).getServiceMessage() != null) {
+                System.out.println(String.format("\nError: %s", ((BlobStorageException) ex).getServiceMessage()));
             }
         }
         System.out.println(String.format("Exception details:\n%s", stringWriter.toString()));
