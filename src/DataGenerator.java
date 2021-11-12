@@ -42,7 +42,7 @@ class DataGenerator {
      * @param bytesToWrite The number of bytes to write to file.
      * @return The newly created File object
      */
-    static File createTempLocalFile(String tempFileNamePrefix, String tempFileNameSuffix, int bytesToWrite) throws IOException, IllegalArgumentException{
+    static File createTempLocalFile(String tempFileNamePrefix, String tempFileNameSuffix, int bytesToWrite) throws IOException {
 
         File tempFile = null;
         FileOutputStream tempFileOutputStream = null;
@@ -59,8 +59,7 @@ class DataGenerator {
                 tempFileOutputStream.write(randomBytes, 0, (bytesToWrite > 4096) ? 4096 : bytesToWrite);
                 bytesToWrite -= 4096;
             }
-        }
-        finally {
+        } finally {
             // Close the file output stream writer
             if (tempFileOutputStream != null) {
                 tempFileOutputStream.close();

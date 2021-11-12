@@ -14,34 +14,37 @@
 // places, or events is intended or should be inferred.
 //----------------------------------------------------------------------------------
 
+import com.azure.storage.blob.BlobClient;
+import com.azure.storage.blob.BlobContainerClient;
+import com.azure.storage.blob.BlobServiceClient;
+import com.azure.storage.blob.models.BlobErrorCode;
+import com.azure.storage.blob.models.Block;
+import com.azure.storage.blob.models.BlockListType;
+import com.azure.storage.blob.models.BlobRange;
+import com.azure.storage.blob.models.BlobStorageException;
+import com.azure.storage.blob.models.CopyStatusType;
+import com.azure.storage.blob.models.DeleteSnapshotsOptionType;
+import com.azure.storage.blob.models.ListBlobContainersOptions;
+import com.azure.storage.blob.models.PageRange;
+import com.azure.storage.blob.models.PublicAccessType;
+import com.azure.storage.blob.options.BlobBeginCopyOptions;
+import com.azure.storage.blob.specialized.AppendBlobClient;
+import com.azure.storage.blob.specialized.BlobClientBase;
+import com.azure.storage.blob.specialized.BlobLeaseClient;
+import com.azure.storage.blob.specialized.BlobLeaseClientBuilder;
+import com.azure.storage.blob.specialized.BlockBlobClient;
+import com.azure.storage.blob.specialized.PageBlobClient;
+
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.net.URISyntaxException;
-import java.security.InvalidKeyException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.Properties;
 import java.util.Random;
-import java.util.Scanner;
-
-import com.microsoft.azure.storage.CloudStorageAccount;
-import com.microsoft.azure.storage.StorageException;
-import com.microsoft.azure.storage.blob.BlobContainerPermissions;
-import com.microsoft.azure.storage.blob.BlobContainerPublicAccessType;
-import com.microsoft.azure.storage.blob.BlockEntry;
-import com.microsoft.azure.storage.blob.CloudAppendBlob;
-import com.microsoft.azure.storage.blob.CloudBlob;
-import com.microsoft.azure.storage.blob.CloudBlobClient;
-import com.microsoft.azure.storage.blob.CloudBlobContainer;
-import com.microsoft.azure.storage.blob.CloudBlockBlob;
-import com.microsoft.azure.storage.blob.CloudPageBlob;
-import com.microsoft.azure.storage.blob.CopyStatus;
-import com.microsoft.azure.storage.blob.DeleteSnapshotsOption;
-import com.microsoft.azure.storage.blob.ListBlobItem;
-import com.microsoft.azure.storage.blob.PageRange;
 
 /**
  * This sample illustrates basic usage of the various Blob Primitives provided
@@ -52,116 +55,78 @@ public class BlobBasics {
 
     /**
      * Azure Storage Blob Sample
-     *
-     * @throws Exception
      */
-    public static void runSamples() throws Exception {
+    public static void runSamples() {
 
         System.out.println("Azure Storage Blob basic sample - Starting.");
 
-        CloudBlobClient blobClient;
-        CloudBlobContainer container1 = null;
-        CloudBlobContainer container2 = null;
+        BlobServiceClient blobServiceClient;
+        BlobContainerClient container1 = null;
+        BlobContainerClient container2 = null;
 
         try {
             // Create a blob client for interacting with the blob service
-            blobClient = BlobClientProvider.getBlobClientReference();
+            blobServiceClient = BlobClientProvider.getBlobServiceClient();
 
             // Create new containers with randomized names
             System.out.println("\nCreate container for the sample demonstration");
-            container1 = createContainer(blobClient, DataGenerator.createRandomName("blobbasics-"));
-            System.out.println(String.format("\tSuccessfully created the container \"%s\".", container1.getName()));
-            container2 = createContainer(blobClient, DataGenerator.createRandomName("blobbasics-"));
-            System.out.println(String.format("\tSuccessfully created the container \"%s\".", container2.getName()));
+            container1 = createContainer(blobServiceClient, DataGenerator.createRandomName("blobbasics-"));
+            System.out.println(String.format("\tSuccessfully created the container \"%s\".", container1.getBlobContainerName()));
+            container2 = createContainer(blobServiceClient, DataGenerator.createRandomName("blobbasics-"));
+            System.out.println(String.format("\tSuccessfully created the container \"%s\".", container2.getBlobContainerName()));
 
             // Demonstrate block blobs
             System.out.println("\nBasic block blob operations\n");
-            try {
-                basicBlockBlobOperations(container1);
-            }
-            catch (StorageException s) {
-                if (s.getErrorCode().equals("BlobTypeNotSupported")) {
-                    System.out.println(String.format("\t\tError: %s", s.getMessage()));
-                }
-                else {
-                    throw s;
-                }
-            }
+            basicBlockBlobOperations(container1);
 
             // Demonstrate append blobs
             System.out.println("\nBasic append blob operations\n");
-            try {
-                basicAppendBlobOperations(container1);
-            }
-            catch (StorageException s) {
-                if (s.getErrorCode().equals("BlobTypeNotSupported")) {
-                    System.out.println(String.format("\t\tError: %s", s.getMessage()));
-                }
-                else if (s.getErrorCode().equals("FeatureNotSupportedByEmulator")) {
-                    System.out.println("\t\tError: The append blob feature is currently not supported by the Storage Emulator.");
-                    System.out.println("\t\tPlease run the sample against your Azure Storage account by updating the config.properties file.");
-                }
-                else {
-                    throw s;
-                }
-            }
+            basicAppendBlobOperations(container1);
 
             // Demonstrate page blobs
             System.out.println("\nBasic page blob operations\n");
-            try {
-                basicPageBlobOperations(container2);
-            }
-            catch (StorageException s) {
-                if (s.getErrorCode().equals("BlobTypeNotSupported")) {
-                    System.out.println(String.format("\t\tError: %s", s.getMessage()));
-                }
-                else {
-                    throw s;
-                }
-            }
+            basicPageBlobOperations(container2);
 
             // Enumerate all containers starting with the prefix "blobbasics-" and list all blobs
             System.out.println("\nEnumerate all containers and starting with the prefix \"blobbasics-\" list all blobs");
-            for (CloudBlobContainer container : blobClient.listContainers("blobbasics-")) {
-                System.out.println(String.format("\tContainer: %s", container.getName()));
-                for (ListBlobItem blob : container.listBlobs()) {
-                    if (blob instanceof CloudBlob) {
-                        System.out.println(String.format("\t\t%s\t: %s", ((CloudBlob) blob).getProperties().getBlobType(), blob.getUri().toString()));
-                    }
-                }
-            }
+            blobServiceClient.listBlobContainers(new ListBlobContainersOptions().setPrefix("blobbasics-"), (Duration) null).forEach(blobContainerItem -> {
+                System.out.println(String.format("\tContainer: %s", blobContainerItem.getName()));
+                BlobContainerClient containerItem = blobServiceClient.getBlobContainerClient(blobContainerItem.getName());
+                containerItem.listBlobs().forEach(blobItem -> {
+                    System.out.println(String.format("\t\t%s\t: %s", blobItem.getProperties().getBlobType(), containerItem.getBlobClient(blobItem.getName()).getBlobUrl()));
+                });
+            });
 
             // Acquire a lease on a container so that another client cannot write to it or delete it
             System.out.println("\nAcquiring a lease on a container to prevent writes and deletes.");
-            container1.acquireLease();
-            System.out.println(String.format("\tSuccessfully acquired a lease on container %s. Lease state: %s.", container1.getName(), container1.getProperties().getLeaseStatus().toString()));
-            container1.breakLease(0);
-            System.out.println(String.format("\tSuccessfully broke the lease on container %s. Lease state: %s.", container1.getName(), container1.getProperties().getLeaseStatus().toString()));
+            BlobLeaseClient blockLeaseBlob = new BlobLeaseClientBuilder().containerClient(container1).buildClient();
+            blockLeaseBlob.acquireLease(-1);
+            System.out.println(String.format("\tSuccessfully acquired a lease on container %s. Lease state: %s.", container1.getBlobContainerName(), container1.getProperties().getLeaseStatus().toString()));
+            blockLeaseBlob.breakLease();
+            System.out.println(String.format("\tSuccessfully broke the lease on container %s. Lease state: %s.", container1.getBlobContainerName(), container1.getProperties().getLeaseStatus().toString()));
 
             // To view the uploaded blobs in a browser, you have two options.
             //   - The first option is to use a Shared Access Signature (SAS) token to delegate access to the resource.
             //     See the documentation links at the top for more information on SAS.
             //   - The second approach is to set permissions to allow public access to blobs in this container.
             //     Uncomment the the lines of code below to use this approach.
-            BlobContainerPermissions containerPermissions = new BlobContainerPermissions();
-            containerPermissions.setPublicAccess(BlobContainerPublicAccessType.CONTAINER);
-            //container1.uploadPermissions(containerPermissions);
-            //container2.uploadPermissions(containerPermissions);
+            container1.setAccessPolicy(PublicAccessType.CONTAINER, container1.getAccessPolicy().getIdentifiers());
+            container2.setAccessPolicy(PublicAccessType.CONTAINER, container2.getAccessPolicy().getIdentifiers());
 
-        }
-        catch (Throwable t) {
-            PrintHelper.printException(t);
-        }
-        finally {
+        } catch (Exception ex) {
+            PrintHelper.printException(ex);
+        } finally {
             // Delete the containers (If you do not want to delete the container comment out the block of code below)
             System.out.print("\nDelete the containers.");
 
-            if (container1 != null && container1.deleteIfExists() == true) {
-                System.out.println(String.format("\tSuccessfully deleted the container: %s", container1.getName()));
+            if (container1 != null) {
+                container1.delete();
+                System.out.println(String.format("\tSuccessfully deleted the container: %s", container1.getBlobContainerName()));
             }
 
-            if (container2 != null && container2.deleteIfExists() == true) {
-                System.out.println(String.format("\tSuccessfully deleted the container: %s", container2.getName()));
+            if (container2 != null) {
+                container2.delete();
+                System.out.println(String.format("\tSuccessfully deleted the container: %s", container2.getBlobContainerName()));
             }
         }
 
@@ -171,49 +136,27 @@ public class BlobBasics {
     /**
      * Creates and returns a container for the sample application to use.
      *
-     * @param blobClient CloudBlobClient object
-     * @param containerName Name of the container to create
+     * @param blobServiceClient CloudBlobClient object
+     * @param containerName     Name of the container to create
      * @return The newly created CloudBlobContainer object
-     *
-     * @throws StorageException
-     * @throws RuntimeException
-     * @throws IOException
-     * @throws URISyntaxException
-     * @throws IllegalArgumentException
-     * @throws InvalidKeyException
-     * @throws IllegalStateException
      */
-    private static CloudBlobContainer createContainer(CloudBlobClient blobClient, String containerName) throws StorageException, RuntimeException, IOException, InvalidKeyException, IllegalArgumentException, URISyntaxException, IllegalStateException {
+    private static BlobContainerClient createContainer(BlobServiceClient blobServiceClient, String containerName) {
 
         // Create a new container
-        CloudBlobContainer container = blobClient.getContainerReference(containerName);
-        try {
-            if (container.createIfNotExists() == false) {
-                throw new IllegalStateException(String.format("Container with name \"%s\" already exists.", containerName));
-            }
+        if (blobServiceClient.getBlobContainerClient(containerName).exists()) {
+            throw new IllegalStateException(String.format("Container with name \"%s\" already exists.", containerName));
         }
-        catch (StorageException s) {
-            if (s.getCause() instanceof java.net.ConnectException) {
-                System.out.println("Caught connection exception from the client. If running with the default configuration please make sure you have started the storage emulator.");
-            }
-            throw s;
-        }
-
-        return container;
+        return blobServiceClient.createBlobContainer(containerName);
     }
 
     /**
      * Demonstrates the basic operations with a block blob.
      *
      * @param container The CloudBlobContainer object to work with
-     *
-     * @throws Throwable
-     * @throws StorageException
      * @throws IOException
      * @throws IllegalArgumentException
-     * @throws URISyntaxException
      */
-    private static void basicBlockBlobOperations(CloudBlobContainer container) throws Throwable, StorageException, IOException, IllegalArgumentException, URISyntaxException {
+    private static void basicBlockBlobOperations(BlobContainerClient container) throws IOException, InterruptedException {
 
         // Create sample files for use
         Random random = new Random();
@@ -228,37 +171,38 @@ public class BlobBasics {
 
         // Upload a sample file as a block blob
         System.out.println("\n\tUpload a sample file as a block blob.");
-        CloudBlockBlob blockBlob1 = container.getBlockBlobReference("blockblob1.tmp");
-        blockBlob1.uploadFromFile(tempFile1.getAbsolutePath());
+        BlobClient blobClient = container.getBlobClient("blockblob1.tmp");
+        blobClient.uploadFromFile(tempFile1.getAbsolutePath());
         System.out.println("\t\tSuccessfully uploaded the blob.");
 
         // Create a read-only snapshot of the blob
         System.out.println("\n\tCreate a read-only snapshot of the blob.");
-        CloudBlob blockBlob1Snapshot = blockBlob1.createSnapshot();
+        BlobClientBase blockBlob1Snapshot = blobClient.createSnapshot();
         System.out.println("\t\tSuccessfully created a snapshot of the blob.");
 
         // Modify the blob by overwriting it
         System.out.println("\n\tOverwrite the blob by uploading the second sample file.");
-        blockBlob1.uploadFromFile(tempFile2.getAbsolutePath());
+        blobClient.uploadFromFile(tempFile2.getAbsolutePath(), true);
         System.out.println("\t\tSuccessfully overwrote the blob.");
 
         // Acquire a lease on the blob so that another client cannot write to it or delete it
         System.out.println("\n\tAcquiring a lease on the blog to prevent writes and deletes.");
-        blockBlob1.acquireLease();
-        System.out.println(String.format("\t\tSuccessfully acquired a lease on blob %s. Lease state: %s.", blockBlob1.getName(), blockBlob1.getProperties().getLeaseStatus().toString()));
-        blockBlob1.breakLease(0);
-        System.out.println(String.format("\t\tSuccessfully broke the lease on blob %s. Lease state: %s.", blockBlob1.getName(), blockBlob1.getProperties().getLeaseStatus().toString()));
+        BlobLeaseClient blockLeaseBlob = new BlobLeaseClientBuilder().blobClient(blobClient).buildClient();
+        blockLeaseBlob.acquireLease(30);
+        System.out.println(String.format("\t\tSuccessfully acquired a lease on blob %s. Lease state: %s.", blobClient.getBlobName(), blobClient.getProperties().getLeaseStatus().toString()));
+        blockLeaseBlob.breakLease();
+        System.out.println(String.format("\t\tSuccessfully broke the lease on blob %s. Lease state: %s.", blobClient.getBlobName(), blobClient.getProperties().getLeaseStatus().toString()));
 
         // Upload a sample file as a block blob using a block list
         System.out.println("\n\tUpload the third sample file as a block blob using a block list.");
-        CloudBlockBlob blockBlob2 = container.getBlockBlobReference("blockblob2.tmp");
-        uploadFileBlocksAsBlockBlob(blockBlob2, tempFile3.getAbsolutePath());
+        BlockBlobClient blockBlobClient1 = container.getBlobClient("blockblob2.tmp").getBlockBlobClient();
+        uploadFileBlocksAsBlockBlob(blockBlobClient1, tempFile3.getAbsolutePath());
         System.out.println("\t\tSuccessfully uploaded the blob using a block list.");
 
         // Download the block list for the block blob
         System.out.println("\n\tDownload the block list.");
-        for (BlockEntry blockEntry : blockBlob2.downloadBlockList()) {
-            System.out.println(String.format("\t\tBlock id: %s (%s), size: %s", new String(Base64.getDecoder().decode(blockEntry.getId())), blockEntry.getId(), blockEntry.getSize()));
+        for (Block blockEntry : blockBlobClient1.listBlocks(BlockListType.COMMITTED).getCommittedBlocks()) {
+            System.out.println(String.format("\t\tBlock id: %s (%s), size: %s", blockEntry.getName(), blockEntry.getName(), blockEntry.getSizeLong()));
         }
 
         // Create sample file for copy demonstration
@@ -268,31 +212,30 @@ public class BlobBasics {
 
         // Upload a sample file as a block blob
         System.out.println("\n\tUpload the sample file as a block blob.");
-        CloudBlockBlob blockBlob3 = container.getBlockBlobReference("blockblob3.tmp");
-        blockBlob3.uploadFromFile(tempFile4.getAbsolutePath());
+        BlobClient blobClient2 = container.getBlobClient("blockblob3.tmp");
+        blobClient2.uploadFromFile(tempFile4.getAbsolutePath());
         System.out.println("\t\tSuccessfully uploaded the blob.");
 
         // Copy the blob
-        System.out.println(String.format("\n\tCopying blob \"%s\".", blockBlob3.getUri().toURL()));
-        CloudBlockBlob blockBlob3Copy = container.getBlockBlobReference(blockBlob3.getName() + ".copy");
-        blockBlob3Copy.startCopy(blockBlob3);
+        System.out.println(String.format("\n\tCopying blob \"%s\".", blobClient2.getBlobUrl()));
+        BlockBlobClient blockBlob3Copy = container.getBlobClient(blobClient2.getBlobName() + ".copy").getBlockBlobClient();
+        blockBlob3Copy.beginCopy(new BlobBeginCopyOptions(blobClient2.getBlobUrl()));
         waitForCopyToComplete(blockBlob3Copy);
         System.out.println("\t\tSuccessfully copied the blob.");
 
         // Abort copying the blob
-        System.out.println(String.format("\n\tAborting while copying blob \"%s\".", blockBlob3.getUri().toURL()));
-        CloudBlockBlob blockBlob3CopyAborted = container.getBlockBlobReference(blockBlob3.getName() + ".copyaborted");
+        System.out.println(String.format("\n\tAborting while copying blob \"%s\".", blobClient2.getBlobUrl()));
+        BlockBlobClient blockBlob3CopyAborted = container.getBlobClient(blobClient2.getBlobName() + ".copyaborted").getBlockBlobClient();
         boolean copyAborted = true;
-        String copyId = blockBlob3CopyAborted.startCopy(blockBlob3);
+        String copyId = blockBlob3CopyAborted.beginCopy(new BlobBeginCopyOptions(blobClient2.getBlobUrl())).poll().getValue().getCopyId();
         try {
-            blockBlob3CopyAborted.abortCopy(copyId);
-        }
-        catch (StorageException ex) {
-            if (ex.getErrorCode().equals("NoPendingCopyOperation")) {
-                copyAborted = false;
-            } else {
+            blockBlob3CopyAborted.abortCopyFromUrl(copyId);
+        } catch (Exception ex) {
+            if (!(ex instanceof BlobStorageException)
+                    || !BlobErrorCode.NO_PENDING_COPY_OPERATION.equals(((BlobStorageException) ex).getErrorCode())) {
                 throw ex;
             }
+            copyAborted = false;
         }
         if (copyAborted == true) {
             System.out.println("\t\tSuccessfully aborted copying the blob.");
@@ -303,27 +246,27 @@ public class BlobBasics {
         // Download the blobs and its snapshot
         System.out.println("\n\tDownload the blobs and its snapshots.");
 
-        String downloadedBlobPath = String.format("%ssnapshotof-%s", System.getProperty("java.io.tmpdir"), blockBlob1Snapshot.getName());
-        System.out.println(String.format("\t\tDownload the blob snapshot from \"%s\" to \"%s\".", blockBlob1Snapshot.getUri().toURL(), downloadedBlobPath));
+        String downloadedBlobPath = String.format("%ssnapshotof-%s", System.getProperty("java.io.tmpdir"), blockBlob1Snapshot.getBlobName());
+        System.out.println(String.format("\t\tDownload the blob snapshot from \"%s\" to \"%s\".", blockBlob1Snapshot.getBlobUrl(), downloadedBlobPath));
         blockBlob1Snapshot.downloadToFile(downloadedBlobPath);
         new File(downloadedBlobPath).deleteOnExit();
         System.out.println("\t\t\tSuccessfully downloaded the blob snapshot.");
 
-        downloadedBlobPath = String.format("%scopyof-%s", System.getProperty("java.io.tmpdir"), blockBlob1.getName());
-        System.out.println(String.format("\t\tDownload the blob from \"%s\" to \"%s\".", blockBlob1.getUri().toURL(), downloadedBlobPath));
-        blockBlob1.downloadToFile(downloadedBlobPath);
+        downloadedBlobPath = String.format("%scopyof-%s", System.getProperty("java.io.tmpdir"), blobClient.getBlobName());
+        System.out.println(String.format("\t\tDownload the blob from \"%s\" to \"%s\".", blobClient.getBlobUrl(), downloadedBlobPath));
+        blobClient.downloadToFile(downloadedBlobPath);
         new File(downloadedBlobPath).deleteOnExit();
         System.out.println("\t\t\tSuccessfully downloaded the blob.");
 
-        downloadedBlobPath = String.format("%scopyof-%s", System.getProperty("java.io.tmpdir"), blockBlob2.getName());
-        System.out.println(String.format("\t\tDownload the blob from \"%s\" to \"%s\".", blockBlob2.getUri().toURL(), downloadedBlobPath));
-        blockBlob2.downloadToFile(downloadedBlobPath);
+        downloadedBlobPath = String.format("%scopyof-%s", System.getProperty("java.io.tmpdir"), blockBlobClient1.getBlobName());
+        System.out.println(String.format("\t\tDownload the blob from \"%s\" to \"%s\".", blockBlobClient1.getBlobUrl(), downloadedBlobPath));
+        blockBlobClient1.downloadToFile(downloadedBlobPath);
         new File(downloadedBlobPath).deleteOnExit();
         System.out.println("\t\t\tSuccessfully downloaded the blob.");
 
         // Delete a blob and its snapshots
-        System.out.println(String.format("\n\tDelete the blob \"%s\" its snapshots.", blockBlob1.getName()));
-        blockBlob1.delete(DeleteSnapshotsOption.INCLUDE_SNAPSHOTS, null, null, null);
+        System.out.println(String.format("\n\tDelete the blob \"%s\" its snapshots.", blobClient.getBlobName()));
+        blobClient.deleteWithResponse(DeleteSnapshotsOptionType.INCLUDE, null, null, null);
         System.out.println("\t\tSuccessfully deleted the blob and its snapshots.");
     }
 
@@ -331,13 +274,9 @@ public class BlobBasics {
      * Demonstrates the basic operations with a page blob.
      *
      * @param container The CloudBlobContainer object to work with
-     *
-     * @throws StorageException
      * @throws IOException
-     * @throws IllegalArgumentException
-     * @throws URISyntaxException
      */
-    private static void basicPageBlobOperations(CloudBlobContainer container) throws StorageException, IOException, IllegalArgumentException, URISyntaxException {
+    private static void basicPageBlobOperations(BlobContainerClient container) throws IOException {
 
         // Create sample files for use. We use a file whose size is aligned to 512 bytes since page blobs are expected to be aligned to 512 byte pages.
         System.out.println("\tCreating sample file 128KB in size (aligned to 512 bytes) for upload demonstration.");
@@ -347,7 +286,7 @@ public class BlobBasics {
         // Upload the sample file sparsely as a page blob (Only upload certain ranges of the file)
         System.out.println("\n\tUpload the sample file sparsely as a page blob.");
         System.out.println("\t\tCreating an empty page blob of the same size as the sample file.");
-        CloudPageBlob pageBlob = container.getPageBlobReference("pageblob.tmp");
+        PageBlobClient pageBlob = container.getBlobClient("pageblob.tmp").getPageBlobClient();
         pageBlob.create(tempFile.length()); // This will throw an IllegalArgumentException if the size if not aligned to 512 bytes.
 
         // Upload selective pages to the blob
@@ -356,14 +295,10 @@ public class BlobBasics {
         try {
             tempFileInputStream = new FileInputStream(tempFile);
             System.out.println("\t\t\tUploading range start: 0, length: 1024.");
-            pageBlob.uploadPages(tempFileInputStream, 0, 1024);
+            pageBlob.uploadPages(new PageRange().setStart(0).setEnd(1024), tempFileInputStream);
             System.out.println("\t\t\tUploading range start: 4096, length: 1536.");
-            pageBlob.uploadPages(tempFileInputStream, 4096, 1536);
-        }
-        catch (Throwable t) {
-            throw t;
-        }
-        finally {
+            pageBlob.uploadPages(new PageRange().setStart(4096).setEnd(4096 + 1536), tempFileInputStream);
+        } finally {
             if (tempFileInputStream != null) {
                 tempFileInputStream.close();
             }
@@ -372,7 +307,7 @@ public class BlobBasics {
 
         // Create a read-only snapshot of the blob
         System.out.println("\n\tCreate a read-only snapshot of the blob.");
-        CloudBlob pageBlobSnapshot = pageBlob.createSnapshot();
+        BlobClientBase pageBlobSnapshot = pageBlob.createSnapshot();
         System.out.println("\t\tSuccessfully created a snapshot of the blob.");
 
         // Upload new pages to the blob, modify and clear existing pages
@@ -382,14 +317,10 @@ public class BlobBasics {
             tempFileInputStream = new FileInputStream(tempFile);
             System.out.println("\t\t\tUploading range start: 8192, length: 4096.");
             tempFileInputStream.getChannel().position(8192);
-            pageBlob.uploadPages(tempFileInputStream, 8192, 4096);
+            pageBlob.uploadPages(new PageRange().setStart(8192).setEnd(8192 + 4096), tempFileInputStream);
             System.out.println("\t\t\tClearing range start: 4608, length: 512.");
-            pageBlob.clearPages(4608, 512);
-        }
-        catch (Throwable t) {
-            throw t;
-        }
-        finally {
+            pageBlob.clearPages(new PageRange().setStart(4608).setEnd(4608 + 512));
+        } finally {
             if (tempFileInputStream != null) {
                 tempFileInputStream.close();
             }
@@ -398,27 +329,27 @@ public class BlobBasics {
 
         // Query valid page ranges
         System.out.println("\n\tQuery valid page ranges.");
-        for (PageRange pageRange : pageBlob.downloadPageRanges()) {
-            System.out.println(String.format("\t\tRange start offset: %d, end offset: %d", pageRange.getStartOffset(), pageRange.getEndOffset()));
+        for (PageRange pageRange : pageBlob.getPageRanges(new BlobRange(0)).getPageRange()) {
+            System.out.println(String.format("\t\tRange start offset: %d, end offset: %d", pageRange.getStart(), pageRange.getEnd()));
         }
 
         // Query page range diff between snapshots
         System.out.println("\n\tQuery page range diff between the snapshot and the current state.");
-        for (PageRange pageRange : pageBlob.downloadPageRangesDiff(pageBlobSnapshot.getSnapshotID())) {
-            System.out.println(String.format("\t\tRange start offset: %d, end offset: %d", pageRange.getStartOffset(), pageRange.getEndOffset()));
+        for (PageRange pageRange : pageBlob.getPageRangesDiff(new BlobRange(0), pageBlobSnapshot.getSnapshotId()).getPageRange()) {
+            System.out.println(String.format("\t\tRange start offset: %d, end offset: %d", pageRange.getStart(), pageRange.getEnd()));
         }
 
         // Download the blob and its snapshot
         System.out.println("\n\tDownload the blob and its snapshot.");
 
-        String downloadedPageBlobSnapshotPath = String.format("%ssnapshotof-%s", System.getProperty("java.io.tmpdir"), pageBlobSnapshot.getName());
-        System.out.println(String.format("\t\tDownload the blob snapshot from \"%s\" to \"%s\".", pageBlobSnapshot.getUri().toURL(), downloadedPageBlobSnapshotPath));
+        String downloadedPageBlobSnapshotPath = String.format("%ssnapshotof-%s", System.getProperty("java.io.tmpdir"), pageBlobSnapshot.getBlobName());
+        System.out.println(String.format("\t\tDownload the blob snapshot from \"%s\" to \"%s\".", pageBlobSnapshot.getBlobUrl(), downloadedPageBlobSnapshotPath));
         pageBlobSnapshot.downloadToFile(downloadedPageBlobSnapshotPath);
         new File(downloadedPageBlobSnapshotPath).deleteOnExit();
         System.out.println("\t\t\tSuccessfully downloaded the blob snapshot.");
 
-        String downloadedPageBlobPath = String.format("%scopyof-%s", System.getProperty("java.io.tmpdir"), pageBlob.getName());
-        System.out.println(String.format("\t\tDownload the blob from \"%s\" to \"%s\".", pageBlob.getUri().toURL(), downloadedPageBlobPath));
+        String downloadedPageBlobPath = String.format("%scopyof-%s", System.getProperty("java.io.tmpdir"), pageBlob.getBlobName());
+        System.out.println(String.format("\t\tDownload the blob from \"%s\" to \"%s\".", pageBlob.getBlobUrl(), downloadedPageBlobPath));
         pageBlob.downloadToFile(downloadedPageBlobPath);
         new File(downloadedPageBlobPath).deleteOnExit();
         System.out.println("\t\t\tSuccessfully downloaded the blob.");
@@ -428,13 +359,9 @@ public class BlobBasics {
      * Demonstrates the basic operations with a append blob.
      *
      * @param container The CloudBlobContainer object to work with
-     *
-     * @throws StorageException
      * @throws IOException
-     * @throws IllegalArgumentException
-     * @throws URISyntaxException
      */
-    private static void basicAppendBlobOperations(CloudBlobContainer container) throws StorageException, IOException, IllegalArgumentException, URISyntaxException {
+    private static void basicAppendBlobOperations(BlobContainerClient container) throws IOException {
 
         // Create sample files for use
         Random random = new Random();
@@ -446,24 +373,36 @@ public class BlobBasics {
 
         // Create an append blob and append data to it from the sample file
         System.out.println("\n\tCreate an empty append blob and append data to it from the sample files.");
-        CloudAppendBlob appendBlob = container.getAppendBlobReference("appendblob.tmp");
-        appendBlob.createOrReplace();
-        appendBlob.appendFromFile(tempFile1.getAbsolutePath());
-        appendBlob.appendFromFile(tempFile2.getAbsolutePath());
+        AppendBlobClient appendBlob = container.getBlobClient("appendblob.tmp").getAppendBlobClient();
+
+        appendBlob.create(true);
+        FileChannel fileChannel = FileChannel.open(tempFile1.toPath());
+        ByteBuffer fileByteBuffer = ByteBuffer.allocate(Long.valueOf(fileChannel.size()).intValue());
+        fileChannel.read(fileByteBuffer);
+        fileChannel.close();
+        appendBlob.getBlobOutputStream().write(fileByteBuffer.array());
+        fileByteBuffer.clear();
+
+        fileChannel = FileChannel.open(tempFile2.toPath());
+        fileByteBuffer = ByteBuffer.allocate(Long.valueOf(fileChannel.size()).intValue());
+        fileChannel.read(fileByteBuffer);
+        fileChannel.close();
+        appendBlob.getBlobOutputStream().write(fileByteBuffer.array());
+        fileByteBuffer.clear();
         System.out.println("\t\tSuccessfully created the append blob and appended data to it.");
 
         // Write random data blocks to the end of the append blob
         byte[] randomBytes = new byte[4096];
         for (int i = 0; i < 8; i++) {
             random.nextBytes(randomBytes);
-            appendBlob.appendFromByteArray(randomBytes, 0, 4096);
+            appendBlob.appendBlock(new ByteArrayInputStream(randomBytes), 4096);
         }
 
         // Download the blob
         if (appendBlob != null) {
             System.out.println("\n\tDownload the blob.");
-            String downloadedAppendBlobPath = String.format("%scopyof-%s", System.getProperty("java.io.tmpdir"), appendBlob.getName());
-            System.out.println(String.format("\t\tDownload the blob from \"%s\" to \"%s\".", appendBlob.getUri().toURL(), downloadedAppendBlobPath));
+            String downloadedAppendBlobPath = String.format("%scopyof-%s", System.getProperty("java.io.tmpdir"), appendBlob.getBlobName());
+            System.out.println(String.format("\t\tDownload the blob from \"%s\" to \"%s\".", appendBlob.getBlobUrl(), downloadedAppendBlobPath));
             appendBlob.downloadToFile(downloadedAppendBlobPath);
             new File(downloadedAppendBlobPath).deleteOnExit();
             System.out.println("\t\t\tSuccessfully downloaded the blob.");
@@ -474,44 +413,50 @@ public class BlobBasics {
      * Creates and returns a temporary local file for use by the sample.
      *
      * @param blockBlob CloudBlockBlob object.
-     * @param filePath The path to the file to be uploaded.
-     *
-     * @throws Throwable
+     * @param filePath  The path to the file to be uploaded.
+     * @throws IOException
      */
-    private static void uploadFileBlocksAsBlockBlob(CloudBlockBlob blockBlob, String filePath) throws Throwable {
+    private static void uploadFileBlocksAsBlockBlob(BlockBlobClient blockBlob, String filePath) throws IOException {
 
         FileInputStream fileInputStream = null;
+        ByteArrayInputStream byteInputStream = null;
+        byte[] bytes = null;
         try {
             // Open the file
             fileInputStream = new FileInputStream(filePath);
-
             // Split the file into 32K blocks (block size deliberately kept small for the demo) and upload all the blocks
             int blockNum = 0;
             String blockId = null;
             String blockIdEncoded = null;
-            ArrayList<BlockEntry> blockList = new ArrayList<BlockEntry>();
+            ArrayList<String> blockList = new ArrayList<String>();
             while (fileInputStream.available() > (32 * 1024)) {
+                bytes = new byte[32 * 1024];
+                fileInputStream.read(bytes);
+                byteInputStream = new ByteArrayInputStream(bytes);
                 blockId = String.format("%05d", blockNum);
                 blockIdEncoded = Base64.getEncoder().encodeToString(blockId.getBytes());
-                blockBlob.uploadBlock(blockIdEncoded, fileInputStream, (32 * 1024));
-                blockList.add(new BlockEntry(blockIdEncoded));
+                blockBlob.stageBlock(blockIdEncoded, byteInputStream, 32 * 1024);
+                blockList.add(blockIdEncoded);
                 blockNum++;
+                System.out.println(bytes.length);
             }
             blockId = String.format("%05d", blockNum);
             blockIdEncoded = Base64.getEncoder().encodeToString(blockId.getBytes());
-            blockBlob.uploadBlock(blockIdEncoded, fileInputStream, fileInputStream.available());
-            blockList.add(new BlockEntry(blockIdEncoded));
+            bytes = new byte[fileInputStream.available()];
+            fileInputStream.read(bytes);
+            byteInputStream = new ByteArrayInputStream(bytes);
+            blockBlob.upload(byteInputStream, bytes.length, true);
+            blockList.add(blockIdEncoded);
 
             // Commit the blocks
             blockBlob.commitBlockList(blockList);
-        }
-        catch (Throwable t) {
-            throw t;
-        }
-        finally {
+        } finally {
             // Close the file output stream writer
             if (fileInputStream != null) {
                 fileInputStream.close();
+            }
+            if (byteInputStream != null) {
+                byteInputStream.close();
             }
         }
     }
@@ -520,21 +465,14 @@ public class BlobBasics {
      * Wait until the copy complete.
      *
      * @param blob Target of the copy operation
-     *
      * @throws InterruptedException
-     * @throws StorageException
      */
-    private static void waitForCopyToComplete(CloudBlob blob) throws InterruptedException, StorageException {
-        CopyStatus copyStatus = CopyStatus.PENDING;
-        while (copyStatus == CopyStatus.PENDING) {
+    private static void waitForCopyToComplete(BlockBlobClient blob) throws InterruptedException {
+        CopyStatusType copyStatus = CopyStatusType.PENDING;
+        while (copyStatus == CopyStatusType.PENDING) {
             Thread.sleep(1000);
-            blob.downloadAttributes();
-            copyStatus = blob.getCopyState().getStatus();
+            copyStatus = blob.getProperties().getCopyStatus();
         }
     }
-
-
-
-
 
 }
